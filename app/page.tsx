@@ -247,7 +247,7 @@ function GlobalFonts(): React.JSX.Element {
 
       :root {
         --font-body: 'Inter', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, 'Noto Sans', 'Liberation Sans', sans-serif;
-        --font-quote: , ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
+        --font-quote: ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
         --font-script: 'Birthstone Bounce', ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
       }
 
@@ -686,9 +686,10 @@ function MusicPlayer(): React.JSX.Element {
   aria-label={playing ? "Parar música" : "Tocar música"}
   title={playing ? "Parar música" : "Tocar música"}
 >
-  <span style={{ fontSize: 18, lineHeight: 1 }}>
-    {playing ? "⏸" : "▶"}
-  </span>
+<span className="inline-flex" style={{ lineHeight: 1 }}>
+  {playing ? <IconPause /> : <IconPlay />}
+</span>
+
 </button>
 
         )}
@@ -1153,7 +1154,7 @@ function LinkButton(props: { href: string; label: string }): React.JSX.Element {
 }
 function IconPin(): React.JSX.Element {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path
         d="M12 22s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12Z"
         stroke={COLORS.sageDark}
@@ -1166,7 +1167,7 @@ function IconPin(): React.JSX.Element {
 
 function IconHome(): React.JSX.Element {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path
         d="M4 10.5 12 4l8 6.5V20a1.5 1.5 0 0 1-1.5 1.5H5.5A1.5 1.5 0 0 1 4 20v-9.5Z"
         stroke={COLORS.sageDark}
@@ -1180,9 +1181,24 @@ function IconHome(): React.JSX.Element {
 
 function IconClock(): React.JSX.Element {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <circle cx="12" cy="12" r="8" stroke={COLORS.sageDark} strokeWidth="1.8" />
       <path d="M12 7v5l3 2" stroke={COLORS.sageDark} strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+function IconPlay(): React.JSX.Element {
+  return (
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M9 7v10l9-5-9-5Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function IconPause(): React.JSX.Element {
+  return (
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M7 7h4v10H7V7Zm6 0h4v10h-4V7Z" fill="currentColor" />
     </svg>
   );
 }
@@ -1233,31 +1249,6 @@ function TravelButtons(props: { destination: string }): React.JSX.Element {
   );
 }
 
-
-
-
-function IconClockSmall(): React.JSX.Element {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="12" cy="12" r="8" stroke={COLORS.sageDark} strokeWidth="1.8" />
-      <path d="M12 7v5l3 2" stroke={COLORS.sageDark} strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function IconHomeSquare(): React.JSX.Element {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M4 10.5 12 4l8 6.5V20a1.5 1.5 0 0 1-1.5 1.5H5.5A1.5 1.5 0 0 1 4 20v-9.5Z"
-        stroke={COLORS.sageDark}
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-      <path d="M10 21v-6h4v6" stroke={COLORS.sageDark} strokeWidth="1.8" strokeLinejoin="round" />
-    </svg>
-  );
-}
 
 function LocationBlock(props: {
   title: string;
@@ -1962,14 +1953,47 @@ function Guestbook(): React.JSX.Element {
 }
 
 
-function copyToClipboard(text: string): void {
-  if (typeof navigator === "undefined") return;
-  navigator.clipboard?.writeText(text).catch(() => {
-    // ignore
-  });
+async function copyToClipboard(text: string): Promise<boolean> {
+  if (typeof navigator === "undefined") return false;
+
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // fallback
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      ta.style.top = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
 }
 
+
 function CopyPill(props: { label: string; value: string }): React.JSX.Element {
+  const [copied, setCopied] = useState(false);
+
+  async function onCopy(): Promise<void> {
+    const ok = await copyToClipboard(props.value);
+    if (!ok) return;
+
+    // feedback mobile
+    (navigator as any).vibrate?.(20);
+
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1200);
+  }
+
   return (
     <div className="border px-4 py-3 flex items-start justify-between gap-3" style={{ borderColor: COLORS.line, borderRadius: RADIUS }}>
       <div className="min-w-0">
@@ -1980,17 +2004,26 @@ function CopyPill(props: { label: string; value: string }): React.JSX.Element {
           {props.value}
         </div>
       </div>
+
       <button
         type="button"
-        onClick={() => copyToClipboard(props.value)}
-        className="border px-3 py-2 text-[10px] tracking-[0.22em] uppercase transition hover:bg-black/5"
-        style={{ borderColor: COLORS.line, color: COLORS.muted, borderRadius: 999, flex: "0 0 auto" }}
+        onClick={() => void onCopy()}
+        className="border px-3 py-2 text-[10px] tracking-[0.22em] uppercase transition"
+        style={{
+          borderRadius: 999,
+          flex: "0 0 auto",
+          borderColor: copied ? COLORS.sageDark : COLORS.line,
+          background: copied ? "rgba(142,152,127,0.14)" : "transparent",
+          color: copied ? COLORS.sageDark : COLORS.muted,
+        }}
+        aria-live="polite"
       >
-        Copiar
+        {copied ? "Copiado!" : "Copiar"}
       </button>
     </div>
   );
 }
+
 
 function GiftFund(): React.JSX.Element {
   return (

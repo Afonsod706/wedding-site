@@ -247,7 +247,7 @@ function GlobalFonts(): React.JSX.Element {
 
       :root {
         --font-body: 'Inter', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, 'Noto Sans', 'Liberation Sans', sans-serif;
-        --font-quote: ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
+        --font-quote: 'Inter', ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
         --font-script: 'Birthstone Bounce', ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
       }
 

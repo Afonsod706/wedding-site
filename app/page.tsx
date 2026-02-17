@@ -2418,6 +2418,9 @@ function TextArea(props: {
 
 
 function Guestbook(): React.JSX.Element {
+  const MAX_ITEMS = 50;
+  const MAX_MESSAGE_CHARS = 400;
+
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
@@ -2428,10 +2431,13 @@ function Guestbook(): React.JSX.Element {
 
   const canSubmit = name.trim().length > 1 && message.trim().length > 2;
 
-  // ✅ auto-scroll para o último recado (timeline)
-  const endRef = useRef<HTMLDivElement | null>(null);
+  // ✅ scroll interno (a lista não estica a página)
+  const listRef = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    const el = listRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, [items.length]);
 
   useEffect(() => {
@@ -2441,9 +2447,8 @@ function Guestbook(): React.JSX.Element {
         const data = (await res.json()) as { ok: boolean; items?: typeof items; error?: string };
         if (!res.ok || !data.ok) throw new Error(data.error || "Falha ao carregar recados.");
 
-        // ✅ ordem cronológica (mais antigo em cima, mais recente em baixo)
         const normalized = (data.items || [])
-          .slice(0, 50)
+          .slice(0, MAX_ITEMS)
           .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
         setItems(normalized);
@@ -2456,15 +2461,36 @@ function Guestbook(): React.JSX.Element {
 
   async function onSend(e: React.FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
-    if (!canSubmit) return;
-
-    setStatus("sending");
     setStatusMsg("");
 
+    const cleanName = name.trim();
+    const cleanEmail = email.trim();
+    const cleanMsg = message.trim();
+
+    if (cleanName.length < 2) {
+      setStatus("error");
+      setStatusMsg("Nome é obrigatório.");
+      return;
+    }
+
+    if (cleanMsg.length < 3) {
+      setStatus("error");
+      setStatusMsg("Mensagem é obrigatória.");
+      return;
+    }
+
+    if (cleanMsg.length > MAX_MESSAGE_CHARS) {
+      setStatus("error");
+      setStatusMsg(`Máximo ${MAX_MESSAGE_CHARS} caracteres.`);
+      return;
+    }
+
+    setStatus("sending");
+
     const payload = {
-      name: name.trim(),
-      email: email.trim(),
-      message: message.trim(),
+      name: cleanName,
+      email: cleanEmail,
+      message: cleanMsg,
       createdAt: new Date().toISOString(),
     };
 
@@ -2483,8 +2509,7 @@ function Guestbook(): React.JSX.Element {
 
       if (!res.ok || !data.ok || !data.item) throw new Error(data.error || `Falhou (${res.status}).`);
 
-      // ✅ adiciona no fim (timeline)
-      setItems((prev) => [...prev, data.item!].slice(-50));
+      setItems((prev) => [...prev, data.item!].slice(-MAX_ITEMS));
 
       setStatus("ok");
       setStatusMsg("Recado enviado. Obrigado! 💬");
@@ -2496,6 +2521,8 @@ function Guestbook(): React.JSX.Element {
       const msg = err instanceof Error ? err.message : "Ocorreu um erro.";
       setStatus("error");
       setStatusMsg(msg);
+    } finally {
+      setStatus((prev) => (prev === "sending" ? "idle" : prev));
     }
   }
 
@@ -2510,7 +2537,10 @@ function Guestbook(): React.JSX.Element {
             <form onSubmit={onSend} className="p-8 space-y-6">
               <div className="grid gap-6 sm:grid-cols-2">
                 <label className="block">
-                  <div className="text-[11px] tracking-[0.28em] uppercase" style={{ color: COLORS.muted, fontWeight: 700 }}>
+                  <div
+                    className="text-[11px] tracking-[0.28em] uppercase"
+                    style={{ color: COLORS.muted, fontWeight: 700 }}
+                  >
                     NOME
                   </div>
                   <input
@@ -2524,7 +2554,10 @@ function Guestbook(): React.JSX.Element {
                 </label>
 
                 <label className="block">
-                  <div className="text-[11px] tracking-[0.28em] uppercase" style={{ color: COLORS.muted, fontWeight: 700 }}>
+                  <div
+                    className="text-[11px] tracking-[0.28em] uppercase"
+                    style={{ color: COLORS.muted, fontWeight: 700 }}
+                  >
                     EMAIL (OPCIONAL)
                   </div>
                   <input
@@ -2539,18 +2572,30 @@ function Guestbook(): React.JSX.Element {
               </div>
 
               <label className="block">
-                <div className="text-[11px] tracking-[0.28em] uppercase" style={{ color: COLORS.muted, fontWeight: 700 }}>
+                <div
+                  className="text-[11px] tracking-[0.28em] uppercase"
+                  style={{ color: COLORS.muted, fontWeight: 700 }}
+                >
                   MENSAGEM
                 </div>
+
                 <textarea
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   required
                   rows={6}
+                  maxLength={MAX_MESSAGE_CHARS}
                   className="mt-3 w-full border bg-white px-4 py-3 text-sm outline-none"
                   style={{ borderColor: COLORS.line, borderRadius: 2, color: COLORS.ink }}
                   placeholder="Escreve aqui o teu recado..."
                 />
+
+                <div className="mt-2 flex items-center justify-between text-[12px]" style={{ color: COLORS.muted }}>
+                  <span>{message.trim().length > 0 ? "Escreve algo curto e bonito 😄" : ""}</span>
+                  <span>
+                    {Math.min(message.length, MAX_MESSAGE_CHARS)}/{MAX_MESSAGE_CHARS}
+                  </span>
+                </div>
               </label>
 
               <div className="flex items-center justify-start">
@@ -2577,21 +2622,58 @@ function Guestbook(): React.JSX.Element {
             </form>
           </div>
 
-          {/* LISTA */}
-          <div className="mt-10 space-y-5">
-            {items.length === 0 ? (
-              <div
-                className="border bg-white p-6"
-                style={{ borderColor: COLORS.beigeLine, borderRadius: RADIUS, color: COLORS.muted }}
-              >
-                Ainda não há recados.
-              </div>
-            ) : (
-              <>
-                {items.map((it, idx) => (
-                  <div key={idx} className="border bg-white" style={{ borderColor: COLORS.beigeLine, borderRadius: RADIUS }}>
+          {/* LISTA (com scroll + fade topo/fundo) */}
+          <div className="relative mt-10">
+            {/* fade topo */}
+            <div
+              className="pointer-events-none absolute left-0 right-0 top-0 h-10 z-10"
+              style={{
+                background: "linear-gradient(to bottom, rgba(255,255,255,0.95), rgba(255,255,255,0))",
+                borderTopLeftRadius: RADIUS,
+                borderTopRightRadius: RADIUS,
+              }}
+              aria-hidden="true"
+            />
+
+            {/* fade fundo */}
+            <div
+              className="pointer-events-none absolute left-0 right-0 bottom-0 h-10 z-10"
+              style={{
+                background: "linear-gradient(to top, rgba(255,255,255,0.95), rgba(255,255,255,0))",
+                borderBottomLeftRadius: RADIUS,
+                borderBottomRightRadius: RADIUS,
+              }}
+              aria-hidden="true"
+            />
+
+            <div
+              ref={listRef}
+              className="space-y-5 border bg-white p-4"
+              style={{
+                borderColor: COLORS.beigeLine,
+                borderRadius: RADIUS,
+                maxHeight: 520, // ✅ ajusta como quiseres
+                overflowY: "auto",
+                WebkitOverflowScrolling: "touch",
+              }}
+            >
+              {items.length === 0 ? (
+                <div className="p-2" style={{ color: COLORS.muted }}>
+                  Ainda não há recados.
+                </div>
+              ) : (
+                items.map((it, idx) => (
+                  <div
+                    key={idx}
+                    className="border bg-white"
+                    style={{ borderColor: COLORS.beigeLine, borderRadius: RADIUS }}
+                  >
                     <div className="flex gap-4 p-6">
-                      <div className="w-1" style={{ background: "rgba(174,183,162,0.55)", borderRadius: 999 }} aria-hidden="true" />
+                      <div
+                        className="w-1"
+                        style={{ background: "rgba(174,183,162,0.55)", borderRadius: 999 }}
+                        aria-hidden="true"
+                      />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-4">
                           <div className={cn("text-[15px]", QUOTE_CLASS)} style={{ color: COLORS.ink }}>
@@ -2608,10 +2690,9 @@ function Guestbook(): React.JSX.Element {
                       </div>
                     </div>
                   </div>
-                ))}
-                <div ref={endRef} />
-              </>
-            )}
+                ))
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -2896,7 +2977,7 @@ function GiftFund(): React.JSX.Element {
 function Footer(): React.JSX.Element {
   return (
     <footer>
-      {/* MOBILE (fica bonito como o teu print com overlay) */}
+      {/* MOBILE */}
       <div className="md:hidden relative" style={{ height: 560 }}>
         <img
           src={FOOTER_IMAGE_URL}
@@ -2910,7 +2991,10 @@ function Footer(): React.JSX.Element {
 
         <div className="absolute inset-0 mx-auto flex max-w-6xl flex-col items-center justify-between px-4 py-14 text-center">
           <div className="mx-auto max-w-md">
-            <div className="border border-white/15 bg-black/25 px-6 py-6 backdrop-blur" style={{ borderRadius: RADIUS }}>
+            <div
+              className="border border-white/15 bg-black/25 px-6 py-6 backdrop-blur"
+              style={{ borderRadius: RADIUS }}
+            >
               <p
                 className={cn("text-[15px] italic leading-7", QUOTE_CLASS)}
                 style={{ color: "rgba(255,255,255,0.92)" }}
@@ -2928,15 +3012,32 @@ function Footer(): React.JSX.Element {
               18 | 09 | 2026
             </div>
           </div>
-        
-        <div className="mt-10 text-[11px] tracking-[0.22em] uppercase" style={{ color: "rgba(255,255,255,0.75)" }}>
-  Desenvolvido por Afonso da Silva
-</div>
 
+          {/* Créditos (1 linha, sem fundo) */}
+          <div className="mt-10 flex items-center justify-center gap-2">
+            <span
+              className="text-[11px] tracking-[0.22em] uppercase"
+              style={{ fontWeight: 700, color: "rgba(255,255,255,0.86)" }}
+            >
+              Desenvolvido por{" "}
+              <span style={{ color: "rgba(255,255,255,0.98)" }}>Afonso da Silva</span>
+            </span>
+
+            <span aria-hidden="true" style={{ opacity: 0.45, color: "rgba(255,255,255,0.85)" }}>
+              •
+            </span>
+
+            <span
+              className="text-[9.5px] tracking-[0.20em] uppercase"
+              style={{ fontWeight: 600, color: "rgba(255,255,255,0.62)" }}
+            >
+              Aprovado por Jussara Martins
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* DESKTOP (como o exemplo: texto em cima, foto, nomes em baixo) */}
+      {/* DESKTOP */}
       <div className="hidden md:block bg-white">
         <div className="mx-auto max-w-6xl px-4 py-20">
           <div className="mx-auto max-w-4xl text-center">
@@ -2962,17 +3063,35 @@ function Footer(): React.JSX.Element {
             <div className="mt-3 text-[12px] tracking-[0.55em]" style={{ color: COLORS.muted }}>
               18 | 09 | 2026
             </div>
-            <div className="mt-6 text-[11px] tracking-[0.22em] uppercase" style={{ color: COLORS.muted }}>
-  Desenvolvido por Afonso da Silva
-</div>
 
+            {/* Créditos (1 linha, sem fundo) */}
+            <div className="mt-6 flex items-center justify-center gap-2">
+              <span
+                className="text-[11px] tracking-[0.22em] uppercase"
+                style={{ fontWeight: 700, color: COLORS.muted }}
+              >
+                Desenvolvido por{" "}
+                <span style={{ color: COLORS.ink }}>Afonso da Silva</span>
+              </span>
+
+              <span aria-hidden="true" style={{ opacity: 0.55, color: COLORS.muted }}>
+                •
+              </span>
+
+              <span
+                className="text-[9.5px] tracking-[0.20em] uppercase"
+                style={{ fontWeight: 600, color: "rgba(100,116,139,0.75)" }}
+              >
+                Aprovado por Jussara Martins
+              </span>
+            </div>
           </div>
         </div>
       </div>
-
     </footer>
   );
 }
+
 
 export default function WeddingSite(): React.JSX.Element {
   const items = useMemo(

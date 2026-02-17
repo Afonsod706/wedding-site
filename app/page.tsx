@@ -129,10 +129,60 @@ const PAYMENT = {
   note: "Se te fizer sentido contribuir para a nossa lua de mel (ou ajudar com algum detalhe do casamento), agradecemos de coração. Sem pressão 💚",
 };
 
+// ✅ ícones já existentes em /public/nav
+const PAYMENT_METHOD_ICONS = [
+  { src: "/nav/apple-pay.png", label: "Apple Pay" },
+  { src: "/nav/google-pay.png", label: "Google Pay" },
+  { src: "/nav/mb-way.png", label: "MB WAY" },
+  { src: "/nav/visa.png", label: "Visa" },
+];
 // UI tokens
 const RADIUS = "5px"; // máximo 5px como pediste
 
 // ====== HELPERS ======
+function CopyPillWithIcon(props: { label: string; value: string; iconSrc: string; iconAlt?: string }): React.JSX.Element {
+  return (
+    <div
+      className="border px-4 py-3 flex items-start justify-between gap-3"
+      style={{ borderColor: COLORS.line, borderRadius: RADIUS }}
+    >
+      <div className="min-w-0 flex items-start gap-3">
+        <span
+          className="inline-flex h-9 w-9 items-center justify-center overflow-hidden"
+          style={{ borderRadius: 999, background: "white", border: `1px solid ${COLORS.line}` }}
+          aria-hidden="true"
+        >
+          <img
+            src={props.iconSrc}
+            alt={props.iconAlt || props.label}
+            className="h-6 w-6 object-contain"
+            draggable={false}
+            onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
+          />
+        </span>
+
+        <div className="min-w-0">
+          <div className="text-[10px] tracking-[0.25em] uppercase" style={{ color: COLORS.muted }}>
+            {props.label}
+          </div>
+          <div className="mt-1 font-medium break-words" style={{ color: COLORS.ink }}>
+            {props.value}
+          </div>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => copyToClipboard(props.value)}
+        className="border px-3 py-2 text-[10px] tracking-[0.22em] uppercase transition hover:bg-black/5"
+        style={{ borderColor: COLORS.line, color: COLORS.muted, borderRadius: 999, flex: "0 0 auto" }}
+      >
+        Copiar
+      </button>
+    </div>
+  );
+}
+
 function onlyDigits(v: string): string {
   return v.replace(/\D/g, "");
 }
@@ -696,6 +746,141 @@ function MusicPlayer(): React.JSX.Element {
     </>
   );
 }
+
+function Field(props: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  type?: string;
+  required?: boolean;
+  placeholder?: string;
+}): React.JSX.Element {
+  return (
+    <label className="block">
+      <div className="text-[13px] font-medium" style={{ color: COLORS.muted }}>
+        {props.label}
+      </div>
+      <input
+        type={props.type || "text"}
+        required={props.required}
+        value={props.value}
+        placeholder={props.placeholder}
+        onChange={(e) => props.onChange(e.target.value)}
+        className="mt-2 w-full border bg-white px-4 py-3 text-sm outline-none"
+        style={{ borderColor: "#CBD5E1", color: COLORS.ink, borderRadius: RADIUS }}
+      />
+    </label>
+  );
+}
+
+function isValidEmail(v: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim());
+}
+// ====== PHONE CONFIG (máscaras por país) ======
+type DialCfg = {
+  dial: string;
+  label: string;
+  digits: number; // dígitos depois do indicativo
+  placeholder: string;
+  format: (raw: string) => string; // raw contém só dígitos
+};
+
+
+function formatByGroups(digits: string, groups: number[], sep = "-"): string {
+  let i = 0;
+  const out: string[] = [];
+  for (const g of groups) {
+    const part = digits.slice(i, i + g);
+    if (!part) break;
+    out.push(part);
+    i += g;
+  }
+  return out.join(sep);
+}
+
+const DIALS: DialCfg[] = [
+  {
+    dial: "+351",
+    label: "+351 (Portugal)",
+    digits: 9,
+    placeholder: "912-345-678",
+    format: (raw) => formatByGroups(raw.slice(0, 9), [3, 3, 3], "-"),
+  },
+  {
+    dial: "+244",
+    label: "+244 (Angola)",
+    digits: 9,
+    placeholder: "923-456-789",
+    format: (raw) => formatByGroups(raw.slice(0, 9), [3, 3, 3], "-"),
+  },
+  {
+    dial: "+55",
+    label: "+55 (Brasil)",
+    digits: 11, // padrão móvel: DDD(2) + 9 + 4 = 11
+    placeholder: "(11) 91234-5678",
+    format: (raw) => {
+      const d = raw.slice(0, 11);
+      const a = d.slice(0, 2);
+      const b = d.slice(2, 7);
+      const c = d.slice(7, 11);
+      if (d.length <= 2) return a ? `(${a}` : "";
+      if (d.length <= 7) return `(${a}) ${b}`;
+      return `(${a}) ${b}-${c}`;
+    },
+  },
+  {
+    dial: "+41",
+    label: "+41 (Suíça)",
+    digits: 9, // ex: 79 123 45 67 => sem indicativo: 9 dígitos (inclui prefixo)
+    placeholder: "79 123 45 67",
+    format: (raw) => {
+      const d = raw.slice(0, 9);
+      // 2 3 2 2 com espaços (parece “premium”)
+      const a = d.slice(0, 2);
+      const b = d.slice(2, 5);
+      const c = d.slice(5, 7);
+      const e = d.slice(7, 9);
+      if (d.length <= 2) return a;
+      if (d.length <= 5) return `${a} ${b}`;
+      if (d.length <= 7) return `${a} ${b} ${c}`;
+      return `${a} ${b} ${c} ${e}`;
+    },
+  },
+
+  // se quiseres manter:
+  {
+    dial: "+34",
+    label: "+34 (Espanha)",
+    digits: 9,
+    placeholder: "612-345-678",
+    format: (raw) => formatByGroups(raw.slice(0, 9), [3, 3, 3], "-"),
+  },
+  {
+    dial: "+33",
+    label: "+33 (França)",
+    digits: 9,
+    placeholder: "6 12 34 56 78",
+    format: (raw) => {
+      const d = raw.slice(0, 9);
+      // 1 + 2 2 2 2 (ex: 6 12 34 56 78)
+      const a = d.slice(0, 1);
+      const b = d.slice(1, 3);
+      const c = d.slice(3, 5);
+      const e = d.slice(5, 7);
+      const f = d.slice(7, 9);
+      if (d.length <= 1) return a;
+      if (d.length <= 3) return `${a} ${b}`;
+      if (d.length <= 5) return `${a} ${b} ${c}`;
+      if (d.length <= 7) return `${a} ${b} ${c} ${e}`;
+      return `${a} ${b} ${c} ${e} ${f}`;
+    },
+  },
+];
+
+function getDialCfg(dial: string): DialCfg {
+  return DIALS.find((d) => d.dial === dial) ?? DIALS[0]!;
+}
+
 
 
 function Hero(): React.JSX.Element {
@@ -1447,43 +1632,57 @@ function Reception(): React.JSX.Element {
 }
 
 
-function Field(props: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  type?: string;
-  required?: boolean;
-  placeholder?: string;
-}): React.JSX.Element {
-  return (
-    <label className="block">
-      <div className="text-[13px] font-medium" style={{ color: COLORS.muted }}>
-        {props.label}
-      </div>
-      <input
-        type={props.type || "text"}
-        required={props.required}
-        value={props.value}
-        placeholder={props.placeholder}
-        onChange={(e) => props.onChange(e.target.value)}
-        className="mt-2 w-full border bg-white px-4 py-3 text-sm outline-none"
-        style={{ borderColor: "#CBD5E1", color: COLORS.ink, borderRadius: RADIUS }}
-      />
-    </label>
-  );
-}
 
-function isValidEmail(v: string): boolean {
-  // simples e suficiente para UI (validação final fica no server)
-  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim());
-}
+
+
+// ====== Presence (Grupo / Associados + Atualizar por Código de Família) ======
+type RsvpMember = {
+  guestId: string;
+  name: string;
+  attendance: "yes" | "no";
+  role?: string;
+  isChild?: boolean;
+};
+
+type RsvpApiResponse =
+  | {
+      ok: true;
+      mode: "group";
+      group: { id: string; name: string; code?: string };
+      members: Array<{ guestId: string; name: string; role?: string; isChild?: boolean }>;
+    }
+  | {
+      ok: true;
+      mode: "family";
+      group: { id: string; name: string; code: string };
+      members: Array<{ guestId: string; name: string; role?: string; isChild?: boolean; attendance: "yes" | "no" }>;
+    }
+  | {
+      ok: true;
+      mode: "done";
+      bucket: "open" | "group";
+      action?: "created" | "updated";
+      familyCode?: string;
+    }
+  | { ok: false; error: string };
 
 function Presence(): React.JSX.Element {
+  const [flow, setFlow] = useState<"normal" | "family">("normal");
+
+  // normal
   const [attendance, setAttendance] = useState<"yes" | "no">("yes");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [dial, setDial] = useState("+351");
   const [phone, setPhone] = useState("");
+
+  // family update
+  const [familyCode, setFamilyCode] = useState("");
+
+  // stages
+  const [stage, setStage] = useState<"form" | "group" | "familyForm" | "family">("form");
+  const [group, setGroup] = useState<{ id: string; name: string; code?: string } | null>(null);
+  const [members, setMembers] = useState<RsvpMember[]>([]);
 
   const [status, setStatus] = useState<"idle" | "sending" | "error">("idle");
   const [statusMsg, setStatusMsg] = useState("");
@@ -1491,25 +1690,99 @@ function Presence(): React.JSX.Element {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState("");
   const [modalText, setModalText] = useState("");
+  const [modalFamilyCode, setModalFamilyCode] = useState<string | null>(null);
 
+  const cfg = getDialCfg(dial);
   const emailOk = isValidEmail(email);
- const phoneDigits = countDigits(phone);
+  const phoneDigits = countDigits(phone);
+  const phoneOk = phoneDigits === cfg.digits;
 
-const canSubmit =
-  name.trim().length > 1 &&
-  emailOk &&
-  phoneDigits === 9;
+  const canSubmitForm = name.trim().length > 1 && emailOk && phoneOk;
+  const canSubmitGroup = emailOk && phoneOk && members.length > 0 && Boolean(group?.name);
+  const codeOk = familyCode.trim().length >= 3;
 
+  const canSubmit =
+    flow === "family"
+      ? stage === "familyForm"
+        ? codeOk
+        : stage === "family"
+          ? codeOk && members.length > 0
+          : false
+      : stage === "group"
+        ? canSubmitGroup
+        : canSubmitForm;
 
-  function openSuccessModal(att: "yes" | "no"): void {
-    if (att === "yes") {
-      setModalTitle("Obrigado! 🙌");
-      setModalText("A tua presença foi registada com sucesso. Vemo-nos no grande dia 💚");
-    } else {
-      setModalTitle("Tudo certo 💚");
-      setModalText("Sem problemas — obrigado por avisares. Se mudares de ideias, podes voltar aqui e atualizar.");
+  function resetNormal(): void {
+    setAttendance("yes");
+    setName("");
+    setEmail("");
+    setDial("+351");
+    setPhone("");
+
+    setStage("form");
+    setGroup(null);
+    setMembers([]);
+
+    setStatus("idle");
+    setStatusMsg("");
+  }
+
+  function resetFamily(keepCode = true): void {
+    setAttendance("yes");
+    setGroup(null);
+    setMembers([]);
+    setStage("familyForm");
+    setStatus("idle");
+    setStatusMsg("");
+    if (!keepCode) setFamilyCode("");
+  }
+
+  function switchFlow(next: "normal" | "family"): void {
+    setFlow(next);
+    setStatus("idle");
+    setStatusMsg("");
+    setGroup(null);
+    setMembers([]);
+    if (next === "family") setStage("familyForm");
+    else setStage("form");
+  }
+
+  function kickBackToFormIfEditing(): void {
+    if (flow !== "normal") return;
+    if (stage === "group") {
+      setStage("form");
+      setGroup(null);
+      setMembers([]);
     }
-    setModalOpen(true);
+  }
+
+  function onDialChange(newDial: string): void {
+    kickBackToFormIfEditing();
+    setDial(newDial);
+    const digits = onlyDigits(phone);
+    setPhone(getDialCfg(newDial).format(digits));
+  }
+
+  function onPhoneChange(v: string): void {
+    kickBackToFormIfEditing();
+    const digits = onlyDigits(v);
+    setPhone(cfg.format(digits));
+  }
+
+  function setAttendanceSmart(v: "yes" | "no"): void {
+    setAttendance(v);
+    // aplica a todos quando estás a editar uma lista
+    if (stage === "group" || stage === "family") {
+      setMembers((prev) => prev.map((m) => ({ ...m, attendance: v })));
+    }
+  }
+
+  function setMemberAttendance(guestId: string, v: "yes" | "no"): void {
+    setMembers((prev) => prev.map((m) => (m.guestId === guestId ? { ...m, attendance: v } : m)));
+  }
+
+  function normalizeFamilyCode(v: string): string {
+    return v.trim().toUpperCase();
   }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>): Promise<void> {
@@ -1518,72 +1791,148 @@ const canSubmit =
 
     if (!canSubmit) {
       setStatus("error");
-      setStatusMsg("Preenche Nome, Email válido e Telemóvel.");
+      setStatusMsg(
+        flow === "family"
+          ? "Insere um Código de Família válido."
+          : "Preenche Nome, Email válido e Telemóvel corretamente."
+      );
       return;
     }
 
     setStatus("sending");
 
-    const payload = {
-      type: "rsvp",
-      createdAt: new Date().toISOString(),
-      attendance,
-      name: name.trim(),
-      email: email.trim(),
-      phone: `${dial} ${onlyDigits(phone)}`.trim(),
+    const payload =
+      flow === "family"
+        ? stage === "family"
+          ? {
+              step: "family_submit",
+              familyCode: normalizeFamilyCode(familyCode),
+              members: members.map((m) => ({ guestId: m.guestId, attendance: m.attendance })),
+            }
+          : {
+              step: "family_lookup",
+              familyCode: normalizeFamilyCode(familyCode),
+            }
+        : stage === "group"
+          ? {
+              step: "submit",
+              attendance,
+              name: name.trim(),
+              email: email.trim(),
+              dial,
+              phoneDigits: onlyDigits(phone),
+              phone: `${dial} ${onlyDigits(phone)}`.trim(),
+              groupId: group?.id,
+              groupName: group?.name,
+              members: members.map((m) => ({ guestId: m.guestId, name: m.name, attendance: m.attendance })),
+            }
+          : {
+              step: "lookup",
+              attendance,
+              name: name.trim(),
+              email: email.trim(),
+              dial,
+              phoneDigits: onlyDigits(phone),
+              phone: `${dial} ${onlyDigits(phone)}`.trim(),
+            };
 
-    };
+    try {
+      const res = await fetch(RSVP_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-  try {
-  const res = await fetch(RSVP_ENDPOINT, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+      const data = (await res.json().catch(() => ({ ok: false, error: `Falhou (${res.status}).` }))) as RsvpApiResponse;
 
-  // ✅ AQUI: ler resposta JSON (tanto em sucesso como erro)
-  const data = (await res.json().catch(() => ({} as any))) as { ok?: boolean; action?: "created" | "updated"; error?: string };
+      if (!res.ok || data.ok === false) throw new Error((data as any).error || `Falhou (${res.status}).`);
 
-  // ✅ se falhou, usa o erro do backend (se existir)
-  if (!res.ok || data.ok === false) {
-    throw new Error(data.error || `Falhou (${res.status}).`);
-  }
+      // ===== 1) GROUP (fluxo normal)
+      if (data.ok && data.mode === "group") {
+        setGroup(data.group);
+        setMembers(
+          (data.members || []).map((m) => ({
+            guestId: m.guestId,
+            name: m.name,
+            role: m.role,
+            isChild: m.isChild,
+            attendance,
+          }))
+        );
+        setStage("group");
+        setStatus("idle");
+        return;
+      }
 
-  // reset form
-  setAttendance("yes");
-  setName("");
-  setEmail("");
-  setDial("+351");
-  setPhone("");
+      // ===== 2) FAMILY (update por código)
+      if (data.ok && data.mode === "family") {
+        setGroup({ id: data.group.id, name: data.group.name, code: data.group.code });
+        setMembers(
+          (data.members || []).map((m) => ({
+            guestId: m.guestId,
+            name: m.name,
+            role: m.role,
+            isChild: m.isChild,
+            attendance: m.attendance,
+          }))
+        );
+        setStage("family");
+        setStatus("idle");
+        return;
+      }
 
-  setStatus("idle");
+      // ===== 3) DONE
+      if (data.ok && data.mode === "done") {
+        const isUpdate = data.action === "updated";
 
-  // ✅ aqui decides o texto do modal
-  const isUpdate = data.action === "updated";
+        const code = (data.familyCode || group?.code || "").trim();
+        setModalFamilyCode(code ? code : null);
 
-  if (payload.attendance === "yes") {
-    setModalTitle(isUpdate ? "Atualizado! ✅" : "Obrigado! 🙌");
-    setModalText(
-      isUpdate
-        ? "Atualizámos a tua confirmação. Vemo-nos no grande dia 💚"
-        : "A tua presença foi registada com sucesso. Vemo-nos no grande dia 💚"
-    );
-  } else {
-    setModalTitle(isUpdate ? "Atualizado 💚" : "Tudo certo 💚");
-    setModalText(
-      isUpdate
-        ? "Atualizámos a tua resposta. Obrigado por avisares."
-        : "Sem problemas — obrigado por avisares. Se mudares de ideias, podes voltar aqui e atualizar."
-    );
-  }
+        if (flow === "family") {
+          setModalTitle(isUpdate ? "Atualizado! ✅" : "Feito! ✅");
+          setModalText(
+            isUpdate
+              ? "Atualizámos as confirmações do grupo pelo código."
+              : "Registámos as confirmações do grupo pelo código."
+          );
+          resetFamily(true);
+          setModalOpen(true);
+          return;
+        }
 
-  setModalOpen(true);
-} catch (err: unknown) {
-  const msg = err instanceof Error ? err.message : "Ocorreu um erro.";
-  setStatus("error");
-  setStatusMsg(msg);
-}
+        const title =
+          attendance === "yes"
+            ? isUpdate
+              ? "Atualizado! ✅"
+              : "Obrigado! 🙌"
+            : isUpdate
+              ? "Atualizado 💚"
+              : "Tudo certo 💚";
 
+        const text =
+          attendance === "yes"
+            ? isUpdate
+              ? "Atualizámos a tua confirmação. Vemo-nos no grande dia 💚"
+              : "A tua presença foi registada com sucesso. Vemo-nos no grande dia 💚"
+            : isUpdate
+              ? "Atualizámos a tua resposta. Obrigado por avisares."
+              : "Sem problemas — obrigado por avisares. Se mudares de ideias, podes voltar aqui e atualizar.";
+
+        resetNormal();
+        setModalTitle(title);
+        setModalText(text);
+        setModalOpen(true);
+        return;
+      }
+
+      throw new Error("Resposta inesperada da API.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Ocorreu um erro.";
+      setStatus("error");
+      setStatusMsg(msg);
+    } finally {
+      setStatus((prev) => (prev === "sending" ? "idle" : prev));
+    }
   }
 
   return (
@@ -1595,108 +1944,403 @@ const canSubmit =
           className="mx-auto mt-14 max-w-2xl border bg-white p-7 sm:p-8"
           style={{ borderColor: COLORS.line, borderRadius: RADIUS }}
         >
-          <form onSubmit={onSubmit} className="space-y-6">
-            <div className="grid grid-cols-2 gap-2">
-              {(
-                [
-                  { v: "yes", l: "Sim" },
-                  { v: "no", l: "Não" },
-                ] as const
-              ).map((x) => (
+          {/* Tabs */}
+          <div className="mb-6 grid grid-cols-2 gap-2">
+            {(
+              [
+                { k: "normal", l: "Confirmar presença" },
+                { k: "family", l: "Atualizar por código" },
+              ] as const
+            ).map((x) => {
+              const active = flow === x.k;
+              return (
                 <button
-                  key={x.v}
+                  key={x.k}
                   type="button"
-                  onClick={() => setAttendance(x.v)}
-                  className="border px-4 py-3 text-xs tracking-[0.25em] uppercase transition"
+                  onClick={() => switchFlow(x.k)}
+                  className="border px-4 py-3 text-[11px] tracking-[0.22em] uppercase transition"
                   style={{
                     borderRadius: RADIUS,
-                    borderColor: attendance === x.v ? COLORS.sageDark : COLORS.line,
-                    color: attendance === x.v ? COLORS.sageDark : COLORS.muted,
-                    background: attendance === x.v ? "rgba(174,183,162,0.12)" : "white",
+                    borderColor: active ? COLORS.sageDark : COLORS.line,
+                    color: active ? COLORS.sageDark : COLORS.muted,
+                    background: active ? "rgba(174,183,162,0.12)" : "white",
                   }}
                 >
                   {x.l}
                 </button>
-              ))}
-            </div>
+              );
+            })}
+          </div>
 
-            <Field label="Nome" value={name} onChange={setName} required placeholder="O teu nome" />
-
-            {/* Email agora obrigatório */}
-            <Field
-              label="Email"
-              value={email}
-              onChange={setEmail}
-              required
-              type="email"
-              placeholder="teu@email.com"
-            />
-            {!emailOk && email.trim().length > 0 ? (
-              <div className="text-[12px]" style={{ color: "#b91c1c" }}>
-                Email inválido.
-              </div>
-            ) : null}
-
-            <div className="grid gap-4 sm:grid-cols-3">
-              <label className="block sm:col-span-1">
-                <div className="text-[13px] font-medium" style={{ color: COLORS.muted }}>
-                  Indicativo
+          <form onSubmit={onSubmit} className="space-y-6">
+            {/* ========== FLOW NORMAL ========= */}
+            {flow === "normal" ? (
+              <>
+                {/* Botões Sim/Não */}
+                <div className="grid grid-cols-2 gap-2">
+                  {(
+                    [
+                      { v: "yes", l: "Sim" },
+                      { v: "no", l: "Não" },
+                    ] as const
+                  ).map((x) => {
+                    const active = attendance === x.v;
+                    return (
+                      <button
+                        key={x.v}
+                        type="button"
+                        onClick={() => setAttendanceSmart(x.v)}
+                        className="border px-4 py-3 text-xs tracking-[0.25em] uppercase transition"
+                        style={{
+                          borderRadius: RADIUS,
+                          borderColor: active ? COLORS.sageDark : COLORS.line,
+                          color: active ? COLORS.sageDark : COLORS.muted,
+                          background: active ? "rgba(174,183,162,0.12)" : "white",
+                          transform: active ? "translateY(-1px)" : "translateY(0)",
+                          boxShadow: active ? "0 10px 22px rgba(0,0,0,0.06)" : "none",
+                        }}
+                      >
+                        <span className="inline-flex items-center justify-center gap-2">
+                          {active ? <span aria-hidden="true">✓</span> : null}
+                          <span>{x.l}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
-                <select
-                  value={dial}
-                  onChange={(e) => setDial(e.target.value)}
-                  className="mt-2 w-full border bg-white px-4 py-3 text-sm outline-none"
-                  style={{ borderColor: "#CBD5E1", color: COLORS.ink, borderRadius: RADIUS }}
+
+                {/* Nome */}
+                <label className="block">
+                  <div className="text-[13px] font-medium" style={{ color: COLORS.muted }}>
+                    Nome
+                  </div>
+                  <input
+                    value={name}
+                    onChange={(e) => {
+                      kickBackToFormIfEditing();
+                      setName(e.target.value);
+                    }}
+                    required
+                    placeholder="O teu nome"
+                    className="mt-2 w-full border bg-white px-4 py-3 text-sm outline-none"
+                    style={{ borderColor: "#CBD5E1", color: COLORS.ink, borderRadius: RADIUS }}
+                  />
+                </label>
+
+                {/* Email */}
+                <label className="block">
+                  <div className="text-[13px] font-medium" style={{ color: COLORS.muted }}>
+                    Email
+                  </div>
+                  <input
+                    value={email}
+                    onChange={(e) => {
+                      kickBackToFormIfEditing();
+                      setEmail(e.target.value);
+                    }}
+                    required
+                    type="email"
+                    placeholder="teu@email.com"
+                    className="mt-2 w-full border bg-white px-4 py-3 text-sm outline-none"
+                    style={{ borderColor: "#CBD5E1", color: COLORS.ink, borderRadius: RADIUS }}
+                  />
+                </label>
+
+                {!emailOk && email.trim().length > 0 ? (
+                  <div className="text-[12px]" style={{ color: "#b91c1c" }}>
+                    Email inválido.
+                  </div>
+                ) : null}
+
+                {/* Telemóvel */}
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <label className="block sm:col-span-1">
+                    <div className="text-[13px] font-medium" style={{ color: COLORS.muted }}>
+                      Indicativo
+                    </div>
+
+                    <select
+                      value={dial}
+                      onChange={(e) => onDialChange(e.target.value)}
+                      className="mt-2 w-full border bg-white px-4 py-3 text-sm outline-none"
+                      style={{ borderColor: "#CBD5E1", color: COLORS.ink, borderRadius: RADIUS }}
+                    >
+                      {DIALS.map((d) => (
+                        <option key={d.dial} value={d.dial}>
+                          {d.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <div className="sm:col-span-2">
+                    <label className="block">
+                      <div className="text-[13px] font-medium" style={{ color: COLORS.muted }}>
+                        Telemóvel
+                      </div>
+
+                      <input
+                        value={phone}
+                        onChange={(e) => onPhoneChange(e.target.value)}
+                        inputMode="numeric"
+                        autoComplete="tel"
+                        required
+                        placeholder={cfg.placeholder}
+                        className="mt-2 w-full border bg-white px-4 py-3 text-sm outline-none"
+                        style={{ borderColor: "#CBD5E1", color: COLORS.ink, borderRadius: RADIUS }}
+                      />
+
+                      {phone.length > 0 && !phoneOk ? (
+                        <div className="mt-2 text-[12px]" style={{ color: "#b91c1c" }}>
+                          Este país exige {cfg.digits} dígitos após o indicativo.
+                        </div>
+                      ) : null}
+                    </label>
+                  </div>
+                </div>
+
+                {/* BLOCO DO GRUPO / ASSOCIADOS */}
+                {stage === "group" && group ? (
+                  <div
+                    className="border p-4"
+                    style={{ borderColor: COLORS.line, borderRadius: RADIUS, background: "rgba(243,238,228,0.18)" }}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-[10px] tracking-[0.25em] uppercase" style={{ color: COLORS.muted }}>
+                          Grupo
+                        </div>
+                        <div className={cn("mt-1 text-[18px]", QUOTE_CLASS)} style={{ color: COLORS.ink }}>
+                          {group.name}
+                        </div>
+                        <div className="mt-1 text-[12px]" style={{ color: COLORS.muted }}>
+                          Marca “Sim/Não” para cada pessoa. (O botão de cima aplica a todos.)
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStage("form");
+                          setGroup(null);
+                          setMembers([]);
+                        }}
+                        className="border px-3 py-2 text-[10px] tracking-[0.22em] uppercase transition hover:bg-black/5"
+                        style={{ borderColor: COLORS.line, color: COLORS.muted, borderRadius: 999, flex: "0 0 auto" }}
+                        title="Voltar e alterar dados"
+                      >
+                        Voltar
+                      </button>
+                    </div>
+
+                    <div className="mt-4 space-y-2">
+                      {members.map((m) => (
+                        <div
+                          key={m.guestId}
+                          className="flex items-center justify-between gap-3 border bg-white p-3"
+                          style={{ borderColor: COLORS.line, borderRadius: RADIUS }}
+                        >
+                          <div className="min-w-0">
+                            <div className="text-[14px]" style={{ color: COLORS.ink }}>
+                              {m.name}
+                            </div>
+
+                            {m.role || m.isChild ? (
+                              <div className="mt-1 text-[12px]" style={{ color: COLORS.muted }}>
+                                {m.role ? m.role : null}
+                                {m.role && m.isChild ? " • " : null}
+                                {m.isChild ? "Criança" : null}
+                              </div>
+                            ) : null}
+                          </div>
+
+                          <div className="flex gap-2">
+                            {(["yes", "no"] as const).map((v) => {
+                              const active = m.attendance === v;
+                              return (
+                                <button
+                                  key={v}
+                                  type="button"
+                                  onClick={() => setMemberAttendance(m.guestId, v)}
+                                  className="border px-3 py-2 text-[10px] tracking-[0.22em] uppercase transition"
+                                  style={{
+                                    borderRadius: 999,
+                                    borderColor: active ? COLORS.sageDark : COLORS.line,
+                                    color: active ? COLORS.sageDark : COLORS.muted,
+                                    background: active ? "rgba(174,183,162,0.12)" : "white",
+                                  }}
+                                >
+                                  {v === "yes" ? "Sim" : "Não"}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                <button
+                  type="submit"
+                  disabled={status === "sending" || !canSubmit}
+                  className="w-full border px-6 py-3 text-xs tracking-[0.25em] uppercase transition"
+                  style={{
+                    borderRadius: RADIUS,
+                    borderColor: COLORS.sageDark,
+                    color: "white",
+                    background: COLORS.sageDark,
+                    opacity: status === "sending" || !canSubmit ? 0.6 : 1,
+                  }}
                 >
-                  <option value="+351">+351 (Portugal)</option>
-                  <option value="+244">+244 (Angola)</option>
-                  <option value="+55">+55 (Brasil)</option>
-                  <option value="+34">+34 (Espanha)</option>
-                  <option value="+33">+33 (França)</option>
-                </select>
-              </label>
+                  {status === "sending" ? "A enviar..." : stage === "group" ? "Confirmar grupo" : "Confirmar"}
+                </button>
+              </>
+            ) : (
+              // ========== FLOW FAMILY ==========
+              <>
+                <label className="block">
+                  <div className="text-[13px] font-medium" style={{ color: COLORS.muted }}>
+                    Código de família
+                  </div>
+                  <input
+                    value={familyCode}
+                    onChange={(e) => setFamilyCode(normalizeFamilyCode(e.target.value))}
+                    placeholder="Ex: A1B2C3"
+                    className="mt-2 w-full border bg-white px-4 py-3 text-sm outline-none"
+                    style={{ borderColor: "#CBD5E1", color: COLORS.ink, borderRadius: RADIUS }}
+                  />
+                  <div className="mt-2 text-[12px]" style={{ color: COLORS.muted }}>
+                    Este modo serve para atualizar confirmações do grupo sem precisar de email/telemóvel.
+                  </div>
+                </label>
 
-              <div className="sm:col-span-2">
-  <label className="block">
-    <div className="text-[13px] font-medium" style={{ color: COLORS.muted }}>
-      Telemóvel
-    </div>
+                {(stage === "family" || stage === "familyForm") && group && stage === "family" ? (
+                  <div
+                    className="border p-4"
+                    style={{ borderColor: COLORS.line, borderRadius: RADIUS, background: "rgba(243,238,228,0.18)" }}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-[10px] tracking-[0.25em] uppercase" style={{ color: COLORS.muted }}>
+                          Grupo
+                        </div>
+                        <div className={cn("mt-1 text-[18px]", QUOTE_CLASS)} style={{ color: COLORS.ink }}>
+                          {group.name}
+                        </div>
+                        {group.code ? (
+                          <div className="mt-1 text-[12px]" style={{ color: COLORS.muted }}>
+                            Código: <span style={{ color: COLORS.ink, fontWeight: 600 }}>{group.code}</span>
+                          </div>
+                        ) : null}
+                      </div>
 
-    <input
-      value={phone}
-      onChange={(e) => setPhone(formatPtPhone(e.target.value))}
-      inputMode="numeric"
-      autoComplete="tel"
-      required
-      placeholder="912-345-678"
-      className="mt-2 w-full border bg-white px-4 py-3 text-sm outline-none"
-      style={{ borderColor: "#CBD5E1", color: COLORS.ink, borderRadius: RADIUS }}
-    />
+                      <button
+                        type="button"
+                        onClick={() => resetFamily(true)}
+                        className="border px-3 py-2 text-[10px] tracking-[0.22em] uppercase transition hover:bg-black/5"
+                        style={{ borderColor: COLORS.line, color: COLORS.muted, borderRadius: 999, flex: "0 0 auto" }}
+                        title="Trocar código / voltar"
+                      >
+                        Voltar
+                      </button>
+                    </div>
 
-    {phone.length > 0 && phoneDigits !== 9 ? (
-      <div className="mt-2 text-[12px]" style={{ color: "#b91c1c" }}>
-        O número deve ter 9 dígitos.
-      </div>
-    ) : null}
-  </label>
-</div>
+                    <div className="mt-4 space-y-2">
+                      {members.map((m) => (
+                        <div
+                          key={m.guestId}
+                          className="flex items-center justify-between gap-3 border bg-white p-3"
+                          style={{ borderColor: COLORS.line, borderRadius: RADIUS }}
+                        >
+                          <div className="min-w-0">
+                            <div className="text-[14px]" style={{ color: COLORS.ink }}>
+                              {m.name}
+                            </div>
 
-            </div>
+                            {m.role || m.isChild ? (
+                              <div className="mt-1 text-[12px]" style={{ color: COLORS.muted }}>
+                                {m.role ? m.role : null}
+                                {m.role && m.isChild ? " • " : null}
+                                {m.isChild ? "Criança" : null}
+                              </div>
+                            ) : null}
+                          </div>
 
-            <button
-              type="submit"
-              disabled={status === "sending" || !canSubmit}
-              className="w-full border px-6 py-3 text-xs tracking-[0.25em] uppercase transition"
-              style={{
-                borderRadius: RADIUS,
-                borderColor: COLORS.sageDark,
-                color: "white",
-                background: COLORS.sageDark,
-                opacity: status === "sending" || !canSubmit ? 0.6 : 1,
-              }}
-            >
-              {status === "sending" ? "A enviar..." : "Confirmar"}
-            </button>
+                          <div className="flex gap-2">
+                            {(["yes", "no"] as const).map((v) => {
+                              const active = m.attendance === v;
+                              return (
+                                <button
+                                  key={v}
+                                  type="button"
+                                  onClick={() => setMemberAttendance(m.guestId, v)}
+                                  className="border px-3 py-2 text-[10px] tracking-[0.22em] uppercase transition"
+                                  style={{
+                                    borderRadius: 999,
+                                    borderColor: active ? COLORS.sageDark : COLORS.line,
+                                    color: active ? COLORS.sageDark : COLORS.muted,
+                                    background: active ? "rgba(174,183,162,0.12)" : "white",
+                                  }}
+                                >
+                                  {v === "yes" ? "Sim" : "Não"}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* aplicar a todos (só quando já carregou membros) */}
+                {stage === "family" && members.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    {(
+                      [
+                        { v: "yes", l: "Aplicar SIM a todos" },
+                        { v: "no", l: "Aplicar NÃO a todos" },
+                      ] as const
+                    ).map((x) => (
+                      <button
+                        key={x.v}
+                        type="button"
+                        onClick={() => setAttendanceSmart(x.v)}
+                        className="border px-4 py-3 text-[11px] tracking-[0.22em] uppercase transition"
+                        style={{
+                          borderRadius: RADIUS,
+                          borderColor: COLORS.line,
+                          color: COLORS.muted,
+                          background: "white",
+                        }}
+                      >
+                        {x.l}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+
+                <button
+                  type="submit"
+                  disabled={status === "sending" || !canSubmit}
+                  className="w-full border px-6 py-3 text-xs tracking-[0.25em] uppercase transition"
+                  style={{
+                    borderRadius: RADIUS,
+                    borderColor: COLORS.sageDark,
+                    color: "white",
+                    background: COLORS.sageDark,
+                    opacity: status === "sending" || !canSubmit ? 0.6 : 1,
+                  }}
+                >
+                  {status === "sending"
+                    ? "A enviar..."
+                    : stage === "family"
+                      ? "Atualizar confirmações"
+                      : "Carregar grupo"}
+                </button>
+              </>
+            )}
 
             {status === "error" ? (
               <div className="text-sm" style={{ color: "#b91c1c" }}>
@@ -1714,21 +2358,31 @@ const canSubmit =
             role="dialog"
             aria-modal="true"
           >
-            <div
-              className="w-full max-w-md border bg-white p-6"
-              style={{ borderColor: COLORS.line, borderRadius: RADIUS }}
-            >
+            <div className="w-full max-w-md border bg-white p-6" style={{ borderColor: COLORS.line, borderRadius: RADIUS }}>
               <div className={cn("text-3xl", SCRIPT_CLASS)} style={{ color: COLORS.sageDark }}>
                 {modalTitle}
               </div>
+
               <div className="mt-3 text-[15px] leading-7" style={{ color: COLORS.muted }}>
                 {modalText}
               </div>
 
+              {modalFamilyCode ? (
+                <div className="mt-4">
+                  <CopyPill label="Código de família" value={modalFamilyCode} />
+                  <div className="mt-2 text-[12px]" style={{ color: COLORS.muted }}>
+                    Guarda este código para atualizar a confirmação do grupo mais tarde.
+                  </div>
+                </div>
+              ) : null}
+
               <div className="mt-6 flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setModalOpen(false)}
+                  onClick={() => {
+                    setModalOpen(false);
+                    setModalFamilyCode(null);
+                  }}
                   className="border px-5 py-2 text-[11px] tracking-[0.22em] uppercase transition hover:bg-black/5"
                   style={{ borderColor: COLORS.line, color: COLORS.muted, borderRadius: 999 }}
                 >
@@ -1783,13 +2437,25 @@ function Guestbook(): React.JSX.Element {
 
   const canSubmit = name.trim().length > 1 && message.trim().length > 2;
 
+  // ✅ auto-scroll para o último recado (timeline)
+  const endRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [items.length]);
+
   useEffect(() => {
     async function load(): Promise<void> {
       try {
         const res = await fetch(GUESTBOOK_ENDPOINT, { method: "GET" });
         const data = (await res.json()) as { ok: boolean; items?: typeof items; error?: string };
         if (!res.ok || !data.ok) throw new Error(data.error || "Falha ao carregar recados.");
-        setItems((data.items || []).slice(0, 50));
+
+        // ✅ ordem cronológica (mais antigo em cima, mais recente em baixo)
+        const normalized = (data.items || [])
+          .slice(0, 50)
+          .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+        setItems(normalized);
       } catch {
         setItems([]);
       }
@@ -1826,7 +2492,9 @@ function Guestbook(): React.JSX.Element {
 
       if (!res.ok || !data.ok || !data.item) throw new Error(data.error || `Falhou (${res.status}).`);
 
-      setItems((prev) => [data.item!, ...prev].slice(0, 50));
+      // ✅ adiciona no fim (timeline)
+      setItems((prev) => [...prev, data.item!].slice(-50));
+
       setStatus("ok");
       setStatusMsg("Recado enviado. Obrigado! 💬");
 
@@ -1843,10 +2511,7 @@ function Guestbook(): React.JSX.Element {
   return (
     <section id="recados" style={{ background: COLORS.beige }}>
       <div className="mx-auto max-w-6xl px-4 py-20">
-        <SectionHeader
-          title="Livro de Recados"
-          subtitle="Deixa aqui uma mensagem — vai ficar guardada para sempre."
-        />
+        <SectionHeader title="Livro de Recados" subtitle="Deixa aqui uma mensagem — vai ficar guardada para sempre." />
 
         <div className="mx-auto mt-14 max-w-5xl">
           {/* FORM */}
@@ -1924,35 +2589,37 @@ function Guestbook(): React.JSX.Element {
           {/* LISTA */}
           <div className="mt-10 space-y-5">
             {items.length === 0 ? (
-              <div className="border bg-white p-6" style={{ borderColor: COLORS.beigeLine, borderRadius: RADIUS, color: COLORS.muted }}>
+              <div
+                className="border bg-white p-6"
+                style={{ borderColor: COLORS.beigeLine, borderRadius: RADIUS, color: COLORS.muted }}
+              >
                 Ainda não há recados.
               </div>
             ) : (
-              items.map((it, idx) => (
-                <div key={idx} className="border bg-white" style={{ borderColor: COLORS.beigeLine, borderRadius: RADIUS }}>
-                  <div className="flex gap-4 p-6">
-                    <div
-                      className="w-1"
-                      style={{ background: "rgba(174,183,162,0.55)", borderRadius: 999 }}
-                      aria-hidden="true"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-4">
-                        <div className={cn("text-[15px]", QUOTE_CLASS)} style={{ color: COLORS.ink }}>
-                          {it.name}
+              <>
+                {items.map((it, idx) => (
+                  <div key={idx} className="border bg-white" style={{ borderColor: COLORS.beigeLine, borderRadius: RADIUS }}>
+                    <div className="flex gap-4 p-6">
+                      <div className="w-1" style={{ background: "rgba(174,183,162,0.55)", borderRadius: 999 }} aria-hidden="true" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-4">
+                          <div className={cn("text-[15px]", QUOTE_CLASS)} style={{ color: COLORS.ink }}>
+                            {it.name}
+                          </div>
+                          <div className="text-[12px]" style={{ color: COLORS.muted }}>
+                            {new Date(it.createdAt).toLocaleDateString("pt-PT")}
+                          </div>
                         </div>
-                        <div className="text-[12px]" style={{ color: COLORS.muted }}>
-                          {new Date(it.createdAt).toLocaleDateString("pt-PT")}
-                        </div>
-                      </div>
 
-                      <div className="mt-3 text-[14px] leading-7" style={{ color: COLORS.muted }}>
-                        {it.message}
+                        <div className="mt-3 text-[14px] leading-7" style={{ color: COLORS.muted }}>
+                          {it.message}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))
+                ))}
+                <div ref={endRef} />
+              </>
             )}
           </div>
         </div>
@@ -1962,41 +2629,140 @@ function Guestbook(): React.JSX.Element {
 }
 
 
-function copyToClipboard(text: string): void {
-  if (typeof navigator === "undefined") return;
-  navigator.clipboard?.writeText(text).catch(() => {
-    // ignore
-  });
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // fallback (alguns browsers / contexts)
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      ta.style.top = "-9999px";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
 }
 
-function CopyPill(props: { label: string; value: string }): React.JSX.Element {
+
+function CopyPill(props: { label: string; value: string; iconAfterSrc?: string; iconAfterAlt?: string; iconAfterHeight?: number; }): React.JSX.Element {
+  const [state, setState] = useState<"idle" | "copied" | "error">("idle");
+
+  async function onCopy(): Promise<void> {
+    const ok = await copyToClipboard(props.value);
+    setState(ok ? "copied" : "error");
+    window.setTimeout(() => setState("idle"), 1200);
+  }
+
   return (
-    <div className="border px-4 py-3 flex items-start justify-between gap-3" style={{ borderColor: COLORS.line, borderRadius: RADIUS }}>
+    <div
+      className="border px-4 py-3 flex items-start justify-between gap-3"
+      style={{ borderColor: COLORS.line, borderRadius: RADIUS }}
+    >
       <div className="min-w-0">
         <div className="text-[10px] tracking-[0.25em] uppercase" style={{ color: COLORS.muted }}>
           {props.label}
         </div>
-        <div className="mt-1 font-medium break-words" style={{ color: COLORS.ink }}>
-          {props.value}
+
+        {/* ✅ valor + logo DEPOIS (sem bolinha) */}
+        <div className="mt-1 font-medium break-words flex items-center gap-2" style={{ color: COLORS.ink }}>
+          <span className="break-words">{props.value}</span>
+
+          {props.iconAfterSrc ? (
+            <img
+              src={props.iconAfterSrc}
+              alt={props.iconAfterAlt || props.label}
+              className="w-auto"
+              style={{ height: props.iconAfterHeight ?? 16, opacity: 0.9 }} // ✅ default 16px
+              draggable={false}
+              onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
+            />
+
+          ) : null}
         </div>
       </div>
+
       <button
         type="button"
-        onClick={() => copyToClipboard(props.value)}
+        onClick={() => void onCopy()}
         className="border px-3 py-2 text-[10px] tracking-[0.22em] uppercase transition hover:bg-black/5"
-        style={{ borderColor: COLORS.line, color: COLORS.muted, borderRadius: 999, flex: "0 0 auto" }}
+        style={{
+          borderColor: state === "copied" ? COLORS.sageDark : COLORS.line,
+          color: state === "copied" ? COLORS.sageDark : state === "error" ? "#b91c1c" : COLORS.muted,
+          borderRadius: 999,
+          flex: "0 0 auto",
+          background: state === "copied" ? "rgba(174,183,162,0.12)" : "transparent",
+        }}
       >
-        Copiar
+        {state === "copied" ? "Copiado ✓" : state === "error" ? "Falhou" : "Copiar"}
       </button>
     </div>
   );
 }
 
+function IconLock(): React.JSX.Element {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M7 11V8.5a5 5 0 0 1 10 0V11"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <path
+        d="M7.5 11h9A2.5 2.5 0 0 1 19 13.5v5A2.5 2.5 0 0 1 16.5 21h-9A2.5 2.5 0 0 1 5 18.5v-5A2.5 2.5 0 0 1 7.5 11Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function PayBadge(props: { label: string; src?: string }): React.JSX.Element {
+  const [ok, setOk] = useState(true);
+
+  return (
+    <span
+      className="inline-flex items-center gap-2 border px-3 py-2"
+      style={{
+        borderColor: COLORS.beigeLine,
+        borderRadius: 999,
+        background: "white",
+        color: COLORS.muted,
+      }}
+    >
+      {props.src && ok ? (
+        <img
+          src={props.src}
+          alt={props.label}
+          className="h-4 w-auto"
+          onError={() => setOk(false)}
+          draggable={false}
+        />
+      ) : (
+        <span className="text-[10px] tracking-[0.18em] uppercase">{props.label}</span>
+      )}
+    </span>
+  );
+}
+
 function GiftFund(): React.JSX.Element {
+  const STRIPE_URL = "https://buy.stripe.com/fZu4gy5d63Zl4vi4iq9AA00";
+
   return (
     <section id="fundo" className="bg-white">
       <div className="mx-auto max-w-6xl px-4 py-20">
-        <SectionHeader title="Fundo" subtitle="Se quiseres contribuir, aqui vai a forma mais simples." />
+        <SectionHeader title="Apoio" subtitle="Se quiseres contribuir, aqui vai a forma mais simples." />
 
         <div
           className="mx-auto mt-14 max-w-4xl border bg-white p-7 sm:p-8"
@@ -2006,6 +2772,7 @@ function GiftFund(): React.JSX.Element {
             Dados para contribuição
           </div>
 
+          {/* ✅ Mantém a mensagem principal só UMA vez (sem redundância) */}
           <div className="mt-4 text-[16px] leading-7" style={{ color: COLORS.ink }}>
             {PAYMENT.note}
           </div>
@@ -2013,13 +2780,126 @@ function GiftFund(): React.JSX.Element {
           <div className="mt-7 grid gap-4">
             <CopyPill label="Titular" value={PAYMENT.holders} />
             <CopyPill label="IBAN" value={PAYMENT.iban} />
-            <CopyPill label="MB WAY / Telemóvel" value={PAYMENT.mbway} />
+            
+               {/* ✅ MB WAY abaixo do IBAN, logo depois do número */}
+          <CopyPill
+  label="MB WAY"
+  value={PAYMENT.mbway}
+  iconAfterSrc="/nav/mb-way.png"
+  iconAfterAlt="MB WAY"
+  iconAfterHeight={36} // ✅ experimenta 22, 24, 26
+/>
+
+
+            {/* ✅ CTA moderno (layout planeado) */}
+            <div
+              className="relative border p-5 sm:p-6"
+              style={{
+                borderColor: COLORS.line,
+                borderRadius: RADIUS,
+                background: "rgba(243,238,228,0.22)",
+              }}
+            >
+              {/* ✅ Logo no canto superior direito (fora do botão) */}
+              <div className="absolute right-4 top-4">
+                <div
+                  className="inline-flex h-16 w-16 items-center justify-center border bg-white"
+                  style={{
+                    borderColor: "rgba(231,231,231,0.95)",
+                    borderRadius: 999,
+                    boxShadow: "0 10px 22px rgba(0,0,0,0.06)",
+                  }}
+                  aria-hidden="true"
+                >
+                  <img
+                    src={LOGO_URL}
+                    alt=""
+                    className="h-16 w-16"
+                    style={{ opacity: 0.95 }}
+                    onError={(ev) => ((ev.currentTarget as HTMLImageElement).style.display = "none")}
+                    draggable={false}
+                  />
+                </div>
+              </div>
+
+              {/* ✅ Texto do bloco (curto, não redundante) */}
+              <div className="pr-14 sm:pr-16">
+                <div className={cn("text-[22px] sm:text-[24px]", QUOTE_CLASS)} style={{ color: COLORS.ink }}>
+                  Um gesto de carinho
+                </div>
+
+                <div className="mt-2 text-[14px] leading-6" style={{ color: COLORS.muted }}>
+            Uma forma simples e rápida de contribuir.
+                </div>
+              </div>
+
+              {/* ✅ Botão mantém exatamente a tua cor */}
+              <a
+                href={STRIPE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-5 inline-flex w-full items-center justify-center gap-3 px-6 py-4 text-[12px] tracking-[0.25em] uppercase transition"
+                style={{
+                  background: COLORS.sageDark, // ✅ não mexer
+                  color: "white",
+                  borderRadius: RADIUS,
+                  boxShadow: "0 10px 24px rgba(0,0,0,0.10)",
+                  transform: "translateY(0)",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLAnchorElement).style.transform = "translateY(-1px)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLAnchorElement).style.transform = "translateY(0)";
+                }}
+              >
+                <span aria-hidden="true" style={{ opacity: 0.95 }}>
+                  🔒
+                </span>
+                <span>Deixar contribuição</span>
+                <span aria-hidden="true" style={{ opacity: 0.9 }}>
+                  →
+                </span>
+              </a>
+
+              {/* ✅ Linha de confiança (sem repetir a ideia do note) */}
+              <div className="mt-3 text-center text-[12px]" style={{ color: COLORS.muted }}>
+                Cartão / Apple Pay / Google Pay (consoante o dispositivo).
+              </div>
+
+              {/* ✅ Ícones menos redondos (quadradinhos) */}
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+                {PAYMENT_METHOD_ICONS.map((m) => (
+                  <span
+                    key={m.label}
+                    className="inline-flex items-center justify-center border bg-white px-3 py-2"
+                    style={{
+                      borderColor: "rgba(231,231,231,0.95)",
+                      borderRadius: 8, // ✅ menos redondo
+                      boxShadow: "0 8px 18px rgba(0,0,0,0.05)",
+                    }}
+                    title={m.label}
+                    aria-label={m.label}
+                  >
+                    <img
+                      src={m.src}
+                      alt={m.label}
+                      className="h-[18px] w-auto"
+                      style={{ opacity: 0.92 }}
+                      onError={(ev) => ((ev.currentTarget as HTMLImageElement).style.display = "none")}
+                      draggable={false}
+                    />
+                  </span>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </section>
   );
 }
+
 
 
 function Footer(): React.JSX.Element {
@@ -2112,7 +2992,7 @@ export default function WeddingSite(): React.JSX.Element {
       { id: "rececao", label: "RECEPÇÃO" },
       { id: "presenca", label: "PRESENÇA" },
       { id: "recados", label: "RECADOS" },
-      { id: "fundo", label: "FUNDO" },
+      { id: "fundo", label: "APOIO" },
     ],
     []
   );

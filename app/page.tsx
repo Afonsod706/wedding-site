@@ -297,7 +297,7 @@ function GlobalFonts(): React.JSX.Element {
 
       :root {
         --font-body: 'Inter', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, 'Noto Sans', 'Liberation Sans', sans-serif;
-        --font-quote: , ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
+        --font-quote: 'Inter', ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
         --font-script: 'Birthstone Bounce', ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
       }
 
@@ -736,9 +736,10 @@ function MusicPlayer(): React.JSX.Element {
   aria-label={playing ? "Parar música" : "Tocar música"}
   title={playing ? "Parar música" : "Tocar música"}
 >
-  <span style={{ fontSize: 18, lineHeight: 1 }}>
-    {playing ? "⏸" : "▶"}
-  </span>
+<span className="inline-flex" style={{ lineHeight: 1 }}>
+  {playing ? <IconPause /> : <IconPlay />}
+</span>
+
 </button>
 
         )}
@@ -1338,7 +1339,7 @@ function LinkButton(props: { href: string; label: string }): React.JSX.Element {
 }
 function IconPin(): React.JSX.Element {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path
         d="M12 22s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12Z"
         stroke={COLORS.sageDark}
@@ -1351,7 +1352,7 @@ function IconPin(): React.JSX.Element {
 
 function IconHome(): React.JSX.Element {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path
         d="M4 10.5 12 4l8 6.5V20a1.5 1.5 0 0 1-1.5 1.5H5.5A1.5 1.5 0 0 1 4 20v-9.5Z"
         stroke={COLORS.sageDark}
@@ -1365,9 +1366,24 @@ function IconHome(): React.JSX.Element {
 
 function IconClock(): React.JSX.Element {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <circle cx="12" cy="12" r="8" stroke={COLORS.sageDark} strokeWidth="1.8" />
       <path d="M12 7v5l3 2" stroke={COLORS.sageDark} strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+function IconPlay(): React.JSX.Element {
+  return (
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M9 7v10l9-5-9-5Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function IconPause(): React.JSX.Element {
+  return (
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M7 7h4v10H7V7Zm6 0h4v10h-4V7Z" fill="currentColor" />
     </svg>
   );
 }
@@ -1418,31 +1434,6 @@ function TravelButtons(props: { destination: string }): React.JSX.Element {
   );
 }
 
-
-
-
-function IconClockSmall(): React.JSX.Element {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="12" cy="12" r="8" stroke={COLORS.sageDark} strokeWidth="1.8" />
-      <path d="M12 7v5l3 2" stroke={COLORS.sageDark} strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function IconHomeSquare(): React.JSX.Element {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M4 10.5 12 4l8 6.5V20a1.5 1.5 0 0 1-1.5 1.5H5.5A1.5 1.5 0 0 1 4 20v-9.5Z"
-        stroke={COLORS.sageDark}
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-      <path d="M10 21v-6h4v6" stroke={COLORS.sageDark} strokeWidth="1.8" strokeLinejoin="round" />
-    </svg>
-  );
-}
 
 function LocationBlock(props: {
   title: string;

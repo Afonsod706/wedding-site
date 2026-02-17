@@ -43,9 +43,17 @@ type FamilySubmitRequest = {
   }>;
 };
 
-type RsvpRequest = Partial<
-  LookupRequest & SubmitRequest & FamilyLookupRequest & FamilySubmitRequest
->;
+// ✅ CORREÇÃO: union (|) em vez de intersection (&) e SEM Partial<...>
+type RsvpRequest =
+  | LookupRequest
+  | SubmitRequest
+  | FamilyLookupRequest
+  | FamilySubmitRequest
+  | {
+      // fallback seguro (se vier payload antigo/bugado)
+      step?: string;
+      [k: string]: any;
+    };
 
 // ========================
 // Airtable field names (EXATOS)
@@ -125,7 +133,11 @@ async function airtableFetchJson(
   return { ok: res.ok, status: res.status, data };
 }
 
-type AirtableRecord = { id: string; fields: Record<string, any>; createdTime?: string };
+type AirtableRecord = {
+  id: string;
+  fields: Record<string, any>;
+  createdTime?: string;
+};
 
 function respostaToAttendance(v: any): Attendance | null {
   const s = String(v ?? "").toLowerCase().trim();
@@ -157,7 +169,9 @@ async function findGuestByEmail(args: {
 
   const r = await airtableFetchJson(url, { method: "GET" }, token);
   if (!r.ok) {
-    throw new Error(`Airtable guest search error (${r.status}): ${JSON.stringify(r.data)}`);
+    throw new Error(
+      `Airtable guest search error (${r.status}): ${JSON.stringify(r.data)}`
+    );
   }
 
   return (r.data?.records?.[0] as AirtableRecord | undefined) ?? null;
@@ -180,22 +194,31 @@ async function getGroupAndMembers(args: {
 }> {
   const { token, baseId, groupsTable, guestsTable, groupId } = args;
 
-  const gUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(groupsTable)}/${groupId}`;
+  const gUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(
+    groupsTable
+  )}/${groupId}`;
   const gRes = await airtableFetchJson(gUrl, { method: "GET" }, token);
   if (!gRes.ok) {
-    throw new Error(`Airtable group read error (${gRes.status}): ${JSON.stringify(gRes.data)}`);
+    throw new Error(
+      `Airtable group read error (${gRes.status}): ${JSON.stringify(gRes.data)}`
+    );
   }
 
   const gFields = gRes.data?.fields || {};
-  const groupName = String(gFields[FIELD_GROUP_NAME] || gFields["Name"] || gFields["Nome"] || "Grupo").trim();
+  const groupName = String(
+    gFields[FIELD_GROUP_NAME] || gFields["Name"] || gFields["Nome"] || "Grupo"
+  ).trim();
 
-  // >>> CORREÇÃO PRINCIPAL: campo EXATO
   const familyCode = String(gFields[FIELD_FAMILY_CODE] || "").trim();
 
-  const memberIds: string[] = Array.isArray(gFields[FIELD_GROUP_MEMBERS]) ? gFields[FIELD_GROUP_MEMBERS] : [];
+  const memberIds: string[] = Array.isArray(gFields[FIELD_GROUP_MEMBERS])
+    ? gFields[FIELD_GROUP_MEMBERS]
+    : [];
   if (!memberIds.length) return { groupName, familyCode, memberIds: [], members: [] };
 
-  const or = memberIds.map((id) => `RECORD_ID()='${escapeAirtableString(id)}'`).join(",");
+  const or = memberIds
+    .map((id) => `RECORD_ID()='${escapeAirtableString(id)}'`)
+    .join(",");
   const formula = `OR(${or})`;
 
   const mUrl =
@@ -204,10 +227,14 @@ async function getGroupAndMembers(args: {
 
   const mRes = await airtableFetchJson(mUrl, { method: "GET" }, token);
   if (!mRes.ok) {
-    throw new Error(`Airtable members read error (${mRes.status}): ${JSON.stringify(mRes.data)}`);
+    throw new Error(
+      `Airtable members read error (${mRes.status}): ${JSON.stringify(mRes.data)}`
+    );
   }
 
-  const members: AirtableRecord[] = Array.isArray(mRes.data?.records) ? mRes.data.records : [];
+  const members: AirtableRecord[] = Array.isArray(mRes.data?.records)
+    ? mRes.data.records
+    : [];
   return { groupName, familyCode, memberIds, members };
 }
 
@@ -220,8 +247,6 @@ async function findGroupByFamilyCode(args: {
   const { token, baseId, groupsTable, familyCode } = args;
 
   const codeUpper = escapeAirtableString(normFamilyCode(familyCode));
-
-  // >>> CORRETO: usa o nome EXATO do campo
   const formula = `UPPER({${FIELD_FAMILY_CODE}})='${codeUpper}'`;
 
   const url =
@@ -230,7 +255,9 @@ async function findGroupByFamilyCode(args: {
 
   const r = await airtableFetchJson(url, { method: "GET" }, token);
   if (!r.ok) {
-    throw new Error(`Airtable group search error (${r.status}): ${JSON.stringify(r.data)}`);
+    throw new Error(
+      `Airtable group search error (${r.status}): ${JSON.stringify(r.data)}`
+    );
   }
 
   return (r.data?.records?.[0] as AirtableRecord | undefined) ?? null;
@@ -251,7 +278,6 @@ async function findRsvpsByFamilyAndGuestName(args: {
   const code = escapeAirtableString(normFamilyCode(familyCode));
   const name = escapeAirtableString(guestName.trim());
 
-  // NOTA: "Código da família" na tua imagem tem ícone de lookup -> é array -> ARRAYJOIN faz sentido.
   const formula =
     `AND(` +
     `UPPER(ARRAYJOIN({${FIELD_FAMILY_CODE}}))='${code}',` +
@@ -264,7 +290,9 @@ async function findRsvpsByFamilyAndGuestName(args: {
 
   const r = await airtableFetchJson(url, { method: "GET" }, token);
   if (!r.ok) {
-    throw new Error(`Airtable rsvp search error (${r.status}): ${JSON.stringify(r.data)}`);
+    throw new Error(
+      `Airtable rsvp search error (${r.status}): ${JSON.stringify(r.data)}`
+    );
   }
 
   return Array.isArray(r.data?.records) ? (r.data.records as AirtableRecord[]) : [];
@@ -295,7 +323,18 @@ async function upsertRsvpByGuest(args: {
   phone?: string;
   tokenValue?: string;
 }): Promise<"created" | "updated"> {
-  const { token, baseId, rsvpTable, guestId, guestName, familyCode, attendance, emailRaw, phone, tokenValue } = args;
+  const {
+    token,
+    baseId,
+    rsvpTable,
+    guestId,
+    guestName,
+    familyCode,
+    attendance,
+    emailRaw,
+    phone,
+    tokenValue,
+  } = args;
 
   const resposta = attendance === "yes" ? "Sim" : "Não";
 
@@ -307,7 +346,6 @@ async function upsertRsvpByGuest(args: {
     guestName,
   });
 
-  // se já existe (mesmo duplicado), PATCH em todos para ficar consistente
   if (matches.length) {
     const fields: Record<string, any> = { [FIELD_RSVP_ANSWER]: resposta };
     if (emailRaw) fields["Email digitado"] = emailRaw;
@@ -315,7 +353,9 @@ async function upsertRsvpByGuest(args: {
     if (tokenValue) fields["Token"] = tokenValue;
 
     for (const rec of matches) {
-      const patchUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(rsvpTable)}/${rec.id}`;
+      const patchUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(
+        rsvpTable
+      )}/${rec.id}`;
       const patch = await airtableFetchJson(
         patchUrl,
         {
@@ -326,14 +366,15 @@ async function upsertRsvpByGuest(args: {
         token
       );
       if (!patch.ok) {
-        throw new Error(`Airtable rsvp update error (${patch.status}): ${JSON.stringify(patch.data)}`);
+        throw new Error(
+          `Airtable rsvp update error (${patch.status}): ${JSON.stringify(patch.data)}`
+        );
       }
     }
 
     return "updated";
   }
 
-  // CREATE (primeira vez)
   const fields: Record<string, any> = {
     [FIELD_RSVP_ANSWER]: resposta,
     [FIELD_RSVP_GUEST_LINK]: [guestId],
@@ -353,7 +394,9 @@ async function upsertRsvpByGuest(args: {
     token
   );
   if (!create.ok) {
-    throw new Error(`Airtable rsvp create error (${create.status}): ${JSON.stringify(create.data)}`);
+    throw new Error(
+      `Airtable rsvp create error (${create.status}): ${JSON.stringify(create.data)}`
+    );
   }
 
   return "created";
@@ -419,8 +462,11 @@ async function upsertOpenRsvp(args: {
 // ========================
 export async function POST(req: Request) {
   try {
-    const body = (await req.json()) as RsvpRequest;
-    const step = String(body.step || "lookup").trim();
+    // ✅ CORREÇÃO: não forces TS aqui (evita "never" no build)
+    const bodyUnknown = (await req.json()) as unknown;
+    const body = (bodyUnknown ?? {}) as any as RsvpRequest;
+
+    const step = typeof (body as any)?.step === "string" ? String((body as any).step).trim() : "lookup";
 
     const token = requiredEnv("AIRTABLE_TOKEN");
     const baseId = requiredEnv("AIRTABLE_BASE_ID");
@@ -434,7 +480,7 @@ export async function POST(req: Request) {
     // 1) Fluxo por Código da família
     // =========================
     if (step === "family_lookup") {
-      const familyCode = normFamilyCode(String(body.familyCode || ""));
+      const familyCode = normFamilyCode(String((body as any).familyCode || ""));
       if (!familyCode) {
         return NextResponse.json({ ok: false, error: "Código de família é obrigatório." }, { status: 400 });
       }
@@ -455,7 +501,7 @@ export async function POST(req: Request) {
 
       const familyKey = (codeFromGroup || familyCode).trim();
 
-      const outMembers = [];
+      const outMembers: any[] = [];
       for (const r of members) {
         const f = r.fields || {};
         const name = String(f[FIELD_GUEST_NAME] || f["Name"] || "").trim();
@@ -493,8 +539,8 @@ export async function POST(req: Request) {
     }
 
     if (step === "family_submit") {
-      const familyCode = normFamilyCode(String(body.familyCode || ""));
-      const membersReq = Array.isArray(body.members) ? body.members : [];
+      const familyCode = normFamilyCode(String((body as any).familyCode || ""));
+      const membersReq = Array.isArray((body as any).members) ? (body as any).members : [];
 
       if (!familyCode) return NextResponse.json({ ok: false, error: "Código de família é obrigatório." }, { status: 400 });
       if (!membersReq.length) return NextResponse.json({ ok: false, error: "members em falta." }, { status: 400 });
@@ -514,7 +560,6 @@ export async function POST(req: Request) {
 
       const familyKey = (groupData.familyCode || familyCode).trim();
 
-      // map guestId -> nome (para upsert pelo (código+nome))
       const nameById = new Map<string, string>();
       for (const r of groupData.members) {
         const n = guestNameFromRecord(r);
@@ -528,7 +573,6 @@ export async function POST(req: Request) {
         const guestId = String(m.guestId || "").trim();
         if (!guestId) continue;
 
-        // segurança: só deixa atualizar quem pertence ao grupo
         if (groupData.memberIds.length && !groupData.memberIds.includes(guestId)) continue;
 
         const guestName = nameById.get(guestId) || "";
@@ -563,11 +607,11 @@ export async function POST(req: Request) {
     // =========================
     // 2) Fluxo normal (lookup/submit)
     // =========================
-    const name = String(body.name || "").trim();
-    const emailRaw = String(body.email || "").trim();
-    const phone = String(body.phone || "").trim();
-    const phoneDigits = String(body.phoneDigits || "").trim();
-    const attendance = body.attendance;
+    const name = String((body as any).name || "").trim();
+    const emailRaw = String((body as any).email || "").trim();
+    const phone = String((body as any).phone || "").trim();
+    const phoneDigits = String((body as any).phoneDigits || "").trim();
+    const attendance = (body as any).attendance as Attendance;
 
     if (name.length < 2) return NextResponse.json({ ok: false, error: "Nome é obrigatório." }, { status: 400 });
     if (!emailRaw) return NextResponse.json({ ok: false, error: "Email é obrigatório." }, { status: 400 });
@@ -578,11 +622,10 @@ export async function POST(req: Request) {
 
     const emailKey = normEmail(emailRaw);
 
-    // submit (grupo) -> grava/atualiza 1 por pessoa no RSVP
     if (step === "submit") {
-      const groupId = String(body.groupId || "").trim();
-      const groupName = String(body.groupName || "").trim();
-      const members = Array.isArray(body.members) ? body.members : [];
+      const groupId = String((body as any).groupId || "").trim();
+      const groupName = String((body as any).groupName || "").trim();
+      const members = Array.isArray((body as any).members) ? (body as any).members : [];
 
       if (!groupId) return NextResponse.json({ ok: false, error: "groupId em falta." }, { status: 400 });
       if (!groupName) return NextResponse.json({ ok: false, error: "groupName em falta." }, { status: 400 });
@@ -628,10 +671,8 @@ export async function POST(req: Request) {
       });
     }
 
-    // lookup normal
     const guest = await findGuestByEmail({ token, baseId, guestsTable, emailKey });
 
-    // não está na lista -> RSVP Livres
     if (!guest) {
       const t = tokenShort();
       const action = await upsertOpenRsvp({
@@ -652,7 +693,6 @@ export async function POST(req: Request) {
     const gIds: string[] = Array.isArray(guest.fields?.[FIELD_GUEST_GROUP]) ? guest.fields[FIELD_GUEST_GROUP] : [];
     const groupId = gIds[0] || "";
 
-    // sem grupo -> Livres
     if (!groupId) {
       const t = tokenShort();
       const action = await upsertOpenRsvp({
@@ -670,11 +710,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, mode: "done", bucket: "open", action, token: t });
     }
 
-    // com grupo -> ver membros
     const group = await getGroupAndMembers({ token, baseId, groupsTable, guestsTable, groupId });
     const familyKey = (group.familyCode || "").trim();
 
-    // grupo com 1 -> grava direto
     if (group.members.length <= 1) {
       const t = tokenShort();
       const guestName = guestNameFromRecord(guest);
@@ -717,7 +755,6 @@ export async function POST(req: Request) {
       });
     }
 
-    // grupo com associados -> devolve lista para UI
     const members = group.members
       .map((r) => {
         const f = r.fields || {};

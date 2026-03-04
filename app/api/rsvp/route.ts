@@ -9,6 +9,7 @@ type LookupRequest = {
   email: string;
   phone: string;
   phoneDigits: string;
+  isChild?: boolean; 
 };
 
 type SubmitRequest = {
@@ -64,15 +65,145 @@ const FIELD_GROUP_MEMBERS = "Membros";
 
 const FIELD_GUEST_NAME = "Nome";
 const FIELD_GUEST_EMAIL = "Email";
+const FIELD_GUEST_TEL_DIGITS = "Tel_digits"; // ✅ EXATO como no Airtable
 const FIELD_GUEST_GROUP = "Grupo";
 
 const FIELD_RSVP_ANSWER = "Resposta";
 const FIELD_RSVP_GUEST_LOOKUP = "Convidado"; // lookup (ícone lupa)
 const FIELD_RSVP_GUEST_LINK = "Convidado-LINK"; // link (onde guardas o recordId)
-
+const FIELD_OPEN_CHILD = "Criança ?"; // ✅ EXATO (com espaço)
 // ========================
 // Helpers
 // ========================
+type AirtableUpdateRecord = { id: string; fields: Record<string, any> };
+type AirtableCreateRecord = { fields: Record<string, any> };
+
+async function airtableBatchUpdate(args: {
+  token: string;
+  baseId: string;
+  table: string;
+  records: AirtableUpdateRecord[];
+}): Promise<void> {
+  const { token, baseId, table, records } = args;
+  if (!records.length) return;
+
+  const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`;
+
+  for (const batch of chunk(records)) {
+    const r = await airtableFetchJson(
+      url,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ records: batch }),
+      },
+      token
+    );
+
+    if (!r.ok) throw new Error(`Airtable batch update error (${r.status}): ${JSON.stringify(r.data)}`);
+  }
+}
+
+async function airtableBatchCreate(args: {
+  token: string;
+  baseId: string;
+  table: string;
+  records: AirtableCreateRecord[];
+}): Promise<void> {
+  const { token, baseId, table, records } = args;
+  if (!records.length) return;
+
+  const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`;
+
+  for (const batch of chunk(records)) {
+    const r = await airtableFetchJson(
+      url,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ records: batch }),
+      },
+      token
+    );
+
+    if (!r.ok) throw new Error(`Airtable batch create error (${r.status}): ${JSON.stringify(r.data)}`);
+  }
+}
+const AIRTABLE_BATCH_LIMIT = 10;
+
+function chunk<T>(arr: T[], size = AIRTABLE_BATCH_LIMIT): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+async function listAllByFormula(args: {
+  token: string;
+  baseId: string;
+  table: string;
+  formula: string;
+  pageSize?: number;
+}): Promise<AirtableRecord[]> {
+  const { token, baseId, table, formula, pageSize = 100 } = args;
+
+  const baseUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`;
+  const records: AirtableRecord[] = [];
+  let offset: string | undefined;
+
+  while (true) {
+    const url =
+      `${baseUrl}?pageSize=${pageSize}&filterByFormula=${encodeURIComponent(formula)}` +
+      (offset ? `&offset=${encodeURIComponent(offset)}` : "");
+
+    const r = await airtableFetchJson(url, { method: "GET" }, token);
+    if (!r.ok) throw new Error(`Airtable list error (${r.status}): ${JSON.stringify(r.data)}`);
+
+    const page: AirtableRecord[] = Array.isArray(r.data?.records) ? r.data.records : [];
+    records.push(...page);
+
+    offset = r.data?.offset;
+    if (!offset) break;
+  }
+
+  return records;
+}
+
+async function findRsvpsByFamilyCode(args: {
+  token: string;
+  baseId: string;
+  rsvpTable: string;
+  familyCode: string;
+}): Promise<AirtableRecord[]> {
+  const { token, baseId, rsvpTable, familyCode } = args;
+  const code = escapeAirtableString(normFamilyCode(familyCode));
+
+  // mesmo critério que já usas, só que agora 1 vez
+  const formula = `UPPER(ARRAYJOIN({${FIELD_FAMILY_CODE}}))='${code}'`;
+
+  return listAllByFormula({ token, baseId, table: rsvpTable, formula });
+}
+
+function indexRsvpsByGuestId(rsvps: AirtableRecord[]): Map<string, AirtableRecord[]> {
+  const map = new Map<string, AirtableRecord[]>();
+
+  for (const r of rsvps) {
+    const ids = r.fields?.[FIELD_RSVP_GUEST_LINK];
+    const guestId = Array.isArray(ids) ? String(ids[0] || "") : "";
+    if (!guestId) continue;
+
+    const arr = map.get(guestId) ?? [];
+    arr.push(r);
+    map.set(guestId, arr);
+  }
+
+  // opcional: ordena para “latest first”
+  for (const [k, arr] of map.entries()) {
+    arr.sort((a, b) => new Date(b.createdTime || 0).getTime() - new Date(a.createdTime || 0).getTime());
+    map.set(k, arr);
+  }
+
+  return map;
+}
 function requiredEnv(name: string): string {
   const v = process.env[name];
   if (!v) throw new Error(`Missing env: ${name}`);
@@ -89,6 +220,45 @@ function escapeAirtableString(v: string): string {
 
 function normEmail(v: string): string {
   return v.trim().toLowerCase();
+}
+function digitsOnly(v: string): string {
+  return String(v ?? "").replace(/\D/g, "");
+}
+
+async function findGuestByTelDigits(args: {
+  token: string;
+  baseId: string;
+  guestsTable: string;
+  phoneLocalDigits: string; // ex: 935163201
+  phoneFullDigits?: string; // ex: 351935163201
+}): Promise<AirtableRecord | null> {
+  const { token, baseId, guestsTable, phoneLocalDigits, phoneFullDigits } = args;
+
+  const local = escapeAirtableString(phoneLocalDigits);
+  const full = phoneFullDigits ? escapeAirtableString(phoneFullDigits) : "";
+
+  // Força comparação como texto (mesmo se Tel_digits for número)
+  const f = `{${FIELD_GUEST_TEL_DIGITS}} & ''`;
+
+  const formula = full
+    ? `OR((${f})='${local}', (${f})='${full}')`
+    : `(${f})='${local}'`;
+
+  const url =
+    `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(guestsTable)}` +
+    `?maxRecords=2&filterByFormula=${encodeURIComponent(formula)}`;
+
+  const r = await airtableFetchJson(url, { method: "GET" }, token);
+  if (!r.ok) throw new Error(`Airtable tel_digits search error (${r.status}): ${JSON.stringify(r.data)}`);
+
+  const records: AirtableRecord[] = Array.isArray(r.data?.records) ? r.data.records : [];
+
+  // Se der mais de 1 match, telemóvel duplicado → não arrisca
+  if (records.length > 1) {
+    throw new Error("Encontrámos mais do que um convidado com este número. Contacta os noivos.");
+  }
+
+  return records[0] ?? null;
 }
 
 function normFamilyCode(v: string): string {
@@ -415,6 +585,7 @@ async function upsertOpenRsvp(args: {
   phone: string;
   attendance: Attendance;
   tokenValue: string;
+  isChild?: boolean;
 }): Promise<"created" | "updated"> {
   const { token, baseId, openTable, name, emailRaw, emailKey, phone, attendance, tokenValue } = args;
 
@@ -428,13 +599,15 @@ async function upsertOpenRsvp(args: {
 
   const recordId = find.data?.records?.[0]?.id as string | undefined;
 
-  const fields = {
-    Nome: name,
-    "Email digitado": emailRaw,
-    "Telefone digitado": phone,
-    Resposta: attendance === "yes" ? "Sim" : "Não",
-    Token: tokenValue,
-  };
+const fields = {
+  Nome: name,
+  "Email digitado": emailRaw,
+  "Telefone digitado": phone,
+  Resposta: attendance === "yes" ? "Sim" : "Não",
+  Token: tokenValue,
+
+  [FIELD_OPEN_CHILD]: Boolean(args.isChild), 
+};
 
   if (recordId) {
     const patchUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(openTable)}/${recordId}`;
@@ -500,7 +673,8 @@ export async function POST(req: Request) {
       });
 
       const familyKey = (codeFromGroup || familyCode).trim();
-
+const allRsvps = await findRsvpsByFamilyCode({ token, baseId, rsvpTable, familyCode: familyKey });
+const rsvpByGuestId = indexRsvpsByGuestId(allRsvps);
       const outMembers: any[] = [];
       for (const r of members) {
         const f = r.fields || {};
@@ -510,16 +684,9 @@ export async function POST(req: Request) {
         const role = String(f["Papel na família"] || "").trim();
         const isChild = Boolean(f["Criança?"] || false);
 
-        const rs = await findRsvpsByFamilyAndGuestName({
-          token,
-          baseId,
-          rsvpTable,
-          familyCode: familyKey,
-          guestName: name,
-        });
-
-        const latest = pickLatestByCreatedTime(rs);
-        const current = respostaToAttendance(latest?.fields?.[FIELD_RSVP_ANSWER]);
+ const list = rsvpByGuestId.get(r.id) ?? [];
+const latest = list[0] ?? null;
+const current = respostaToAttendance(latest?.fields?.[FIELD_RSVP_ANSWER]);
 
         outMembers.push({
           guestId: r.id,
@@ -559,40 +726,45 @@ export async function POST(req: Request) {
       });
 
       const familyKey = (groupData.familyCode || familyCode).trim();
+const allRsvps = await findRsvpsByFamilyCode({ token, baseId, rsvpTable, familyCode: familyKey });
+const rsvpByGuestId = indexRsvpsByGuestId(allRsvps);
+    
+    
 
-      const nameById = new Map<string, string>();
-      for (const r of groupData.members) {
-        const n = guestNameFromRecord(r);
-        if (n) nameById.set(r.id, n);
-      }
+      const updates: AirtableUpdateRecord[] = [];
+const creates: AirtableCreateRecord[] = [];
 
-      let anyUpdated = false;
-      let anyCreated = false;
+for (const m of membersReq) {
+  const guestId = String(m.guestId || "").trim();
+  if (!guestId) continue;
 
-      for (const m of membersReq) {
-        const guestId = String(m.guestId || "").trim();
-        if (!guestId) continue;
+  if (groupData.memberIds.length && !groupData.memberIds.includes(guestId)) continue;
 
-        if (groupData.memberIds.length && !groupData.memberIds.includes(guestId)) continue;
+  const a: Attendance = m.attendance === "no" ? "no" : "yes";
+  const resposta = a === "yes" ? "Sim" : "Não";
 
-        const guestName = nameById.get(guestId) || "";
-        if (!guestName) continue;
+  const existing = rsvpByGuestId.get(guestId) ?? [];
 
-        const a: Attendance = m.attendance === "no" ? "no" : "yes";
+  if (existing.length) {
+    // mantém o teu comportamento: atualiza TODOS os existentes desse convidado
+    for (const rec of existing) {
+      updates.push({ id: rec.id, fields: { [FIELD_RSVP_ANSWER]: resposta } });
+    }
+  } else {
+    creates.push({
+      fields: {
+        [FIELD_RSVP_ANSWER]: resposta,
+        [FIELD_RSVP_GUEST_LINK]: [guestId],
+      },
+    });
+  }
+}
 
-        const action = await upsertRsvpByGuest({
-          token,
-          baseId,
-          rsvpTable,
-          guestId,
-          guestName,
-          familyCode: familyKey,
-          attendance: a,
-        });
+await airtableBatchUpdate({ token, baseId, table: rsvpTable, records: updates });
+await airtableBatchCreate({ token, baseId, table: rsvpTable, records: creates });
 
-        if (action === "updated") anyUpdated = true;
-        if (action === "created") anyCreated = true;
-      }
+const anyUpdated = updates.length > 0;
+const anyCreated = creates.length > 0;
 
       return NextResponse.json({
         ok: true,
@@ -671,11 +843,29 @@ export async function POST(req: Request) {
       });
     }
 
-    const guest = await findGuestByEmail({ token, baseId, guestsTable, emailKey });
+  let guest = await findGuestByEmail({ token, baseId, guestsTable, emailKey });
 
+const isChild = Boolean((body as any).isChild);
+
+// ✅ fallback por telefone (Tel_digits)
+if (!guest) {
+  const phoneLocalDigits = digitsOnly(phoneDigits); // vem do UI (9/11/etc)
+  const dialDigits = digitsOnly(String((body as any).dial || "")); // "+351" -> "351"
+  const phoneFullDigits = dialDigits && phoneLocalDigits ? `${dialDigits}${phoneLocalDigits}` : "";
+
+  if (phoneLocalDigits.length >= 6) {
+    guest = await findGuestByTelDigits({
+      token,
+      baseId,
+      guestsTable,
+      phoneLocalDigits,
+      phoneFullDigits: phoneFullDigits || undefined,
+    });
+  }
+}
     if (!guest) {
       const t = tokenShort();
-      const action = await upsertOpenRsvp({
+   const action = await upsertOpenRsvp({
         token,
         baseId,
         openTable,
@@ -685,6 +875,7 @@ export async function POST(req: Request) {
         phone,
         attendance,
         tokenValue: t,
+        isChild,
       });
 
       return NextResponse.json({ ok: true, mode: "done", bucket: "open", action, token: t });
@@ -705,6 +896,7 @@ export async function POST(req: Request) {
         phone,
         attendance,
         tokenValue: t,
+        isChild,
       });
 
       return NextResponse.json({ ok: true, mode: "done", bucket: "open", action, token: t });
@@ -719,16 +911,17 @@ export async function POST(req: Request) {
 
       if (!guestName || !familyKey) {
         const action = await upsertOpenRsvp({
-          token,
-          baseId,
-          openTable,
-          name,
-          emailRaw,
-          emailKey,
-          phone,
-          attendance,
-          tokenValue: t,
-        });
+        token,
+        baseId,
+        openTable,
+        name,
+        emailRaw,
+        emailKey,
+        phone,
+        attendance,
+        tokenValue: t,
+        isChild,
+      });
         return NextResponse.json({ ok: true, mode: "done", bucket: "open", action, token: t });
       }
 

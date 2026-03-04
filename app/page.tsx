@@ -24,7 +24,6 @@ const WEDDING_DATETIME_LOCAL = "2026-09-18T15:00:00"; // Europe/Lisbon
 const RSVP_ENDPOINT = "/api/rsvp";
 const GUESTBOOK_ENDPOINT = "/api/guestbook"; // agora vai para Airtable
 
-
 // Assets (coloca em /public)
 const LOGO_URL = "/logo.png";
 const HERO_IMAGE_URL = "/hero.jpeg";
@@ -46,7 +45,11 @@ const GALLERY_MEDIA: MediaItem[] = [
   { type: "image", src: "/gallery/01.jpeg" },
   { type: "image", src: "/gallery/02.jpeg" },
   { type: "image", src: "/gallery/03.jpeg" },
-  { type: "video", src: "/gallery/video-AJ.mp4", poster: "/gallery/poster-video.png" },
+  {
+    type: "video",
+    src: "/gallery/video-AJ.mp4",
+    poster: "/gallery/poster-video.png",
+  },
 ];
 const MUSIC_URL = "/music.mp3"; // música de fundo (opcional)
 
@@ -59,8 +62,8 @@ const COLORS = {
   paper: "#FFFFFF",
   line: "#E7E7E7",
   beige: "#F3EEE4",
-beigeLine: "#E8DDCC",
-navy: "#1F2B3B",
+  beigeLine: "#E8DDCC",
+  navy: "#1F2B3B",
   navy2: "#233246",
 };
 
@@ -76,7 +79,6 @@ const NAV_ICONS = {
   apple: "/nav/apple-maps.png",
   waze: "/nav/waze.png",
 };
-
 
 const CEREMONY = {
   title: "Cerimónia",
@@ -116,7 +118,6 @@ const RECEPTION = {
   venueLabel: "CENTRO DE EVENTOS",
 };
 
-
 const BIBLE_VERSE =
   "Coloca-me como um selo no teu coração, como um selo no teu braço. Porque o amor é forte como a morte: muitas águas não o apagam, nem os rios o levam. Mesmo que alguém desse todos os bens da sua casa por este amor, seria desprezado. — Cânticos 8:6–7";
 
@@ -140,7 +141,12 @@ const PAYMENT_METHOD_ICONS = [
 const RADIUS = "5px"; // máximo 5px como pediste
 
 // ====== HELPERS ======
-function CopyPillWithIcon(props: { label: string; value: string; iconSrc: string; iconAlt?: string }): React.JSX.Element {
+function CopyPillWithIcon(props: {
+  label: string;
+  value: string;
+  iconSrc: string;
+  iconAlt?: string;
+}): React.JSX.Element {
   return (
     <div
       className="border px-4 py-3 flex items-start justify-between gap-3"
@@ -149,7 +155,11 @@ function CopyPillWithIcon(props: { label: string; value: string; iconSrc: string
       <div className="min-w-0 flex items-start gap-3">
         <span
           className="inline-flex h-9 w-9 items-center justify-center overflow-hidden"
-          style={{ borderRadius: 999, background: "white", border: `1px solid ${COLORS.line}` }}
+          style={{
+            borderRadius: 999,
+            background: "white",
+            border: `1px solid ${COLORS.line}`,
+          }}
           aria-hidden="true"
         >
           <img
@@ -157,15 +167,23 @@ function CopyPillWithIcon(props: { label: string; value: string; iconSrc: string
             alt={props.iconAlt || props.label}
             className="h-6 w-6 object-contain"
             draggable={false}
-            onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
+            onError={(e) =>
+              ((e.currentTarget as HTMLImageElement).style.display = "none")
+            }
           />
         </span>
 
         <div className="min-w-0">
-          <div className="text-[10px] tracking-[0.25em] uppercase" style={{ color: COLORS.muted }}>
+          <div
+            className="text-[10px] tracking-[0.25em] uppercase"
+            style={{ color: COLORS.muted }}
+          >
             {props.label}
           </div>
-          <div className="mt-1 font-medium break-words" style={{ color: COLORS.ink }}>
+          <div
+            className="mt-1 font-medium break-words"
+            style={{ color: COLORS.ink }}
+          >
             {props.value}
           </div>
         </div>
@@ -175,7 +193,12 @@ function CopyPillWithIcon(props: { label: string; value: string; iconSrc: string
         type="button"
         onClick={() => copyToClipboard(props.value)}
         className="border px-3 py-2 text-[10px] tracking-[0.22em] uppercase transition hover:bg-black/5"
-        style={{ borderColor: COLORS.line, color: COLORS.muted, borderRadius: 999, flex: "0 0 auto" }}
+        style={{
+          borderColor: COLORS.line,
+          color: COLORS.muted,
+          borderRadius: 999,
+          flex: "0 0 auto",
+        }}
       >
         Copiar
       </button>
@@ -225,7 +248,6 @@ function buildWazeLink(destination: string): string {
   return `https://waze.com/ul?q=${d}&navigate=yes`;
 }
 
-
 function safeJsonParse<T>(str: string, fallback: T): T {
   try {
     return JSON.parse(str) as T;
@@ -234,19 +256,38 @@ function safeJsonParse<T>(str: string, fallback: T): T {
   }
 }
 
-type CountdownValue = { isPast: boolean; days: number; hours: number; minutes: number; seconds: number };
+type CountdownValue = {
+  ready: boolean;
+  isPast: boolean;
+  days: number;
+  hours: number;
+  minutes: number;
+  seconds: number;
+};
 
 function useCountdown(targetISO: string): CountdownValue {
   const target = useMemo(() => new Date(targetISO), [targetISO]);
-const [now, setNow] = useState<Date>(() => new Date(0)); // determinístico no SSR
+  const [now, setNow] = useState<Date>(() => new Date(0)); // SSR-safe
 
+  useEffect(() => {
+    setNow(new Date()); // ✅ atualiza imediatamente ao montar
+    const id = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
 
-useEffect(() => {
-  const id = window.setInterval(() => setNow(new Date()), 1000);
-  return () => window.clearInterval(id);
-}, []);
+  const ready = now.getTime() !== 0;
 
-
+  // ✅ evita “20714 dias” no HTML inicial
+  if (!ready) {
+    return {
+      ready: false,
+      isPast: false,
+      days: 0,
+      hours: 0,
+      minutes: 0,
+      seconds: 0,
+    };
+  }
 
   const diffMs = target.getTime() - now.getTime();
   const isPast = diffMs <= 0;
@@ -257,7 +298,7 @@ useEffect(() => {
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
 
-  return { isPast, days, hours, minutes, seconds };
+  return { ready: true, isPast, days, hours, minutes, seconds };
 }
 
 function cn(...xs: Array<string | false | undefined | null>): string {
@@ -270,75 +311,58 @@ function runSelfTests(): void {
   g.__WEDDING_SITE_TESTED__ = true;
 
   const u = buildEmbedMapUrl("Av. Emídio Navarro 54-55, Coimbra");
-  console.assert(u.includes("output=embed"), "[TEST] embed url must contain output=embed");
+  console.assert(
+    u.includes("output=embed"),
+    "[TEST] embed url must contain output=embed",
+  );
   console.assert(pad2(0) === "00", "[TEST] pad2 zero");
   console.assert(pad2(3) === "03", "[TEST] pad2 small");
   console.assert(pad2(12) === "12", "[TEST] pad2 >= 10");
-  console.assert(buildMapsLink("Rua X").includes("destination="), "[TEST] maps link includes destination");
   console.assert(
-    buildMapsLink("Rua X").includes("Rua%20X") || buildMapsLink("Rua X").includes("Rua+X"),
-    "[TEST] maps link encodes spaces"
+    buildMapsLink("Rua X").includes("destination="),
+    "[TEST] maps link includes destination",
   );
-  console.assert(buildWazeLink("Rua X").includes("waze"), "[TEST] waze link contains waze domain");
-  console.assert(buildAppleMapsLink("Rua X").includes("maps.apple.com"), "[TEST] apple maps link domain");
-  console.assert(safeJsonParse<{ a: number }>("{\"a\":1}", { a: 0 }).a === 1, "[TEST] safeJsonParse ok");
-  console.assert(Array.isArray(safeJsonParse("nope", [] as unknown[])), "[TEST] safeJsonParse fallback");
+  console.assert(
+    buildMapsLink("Rua X").includes("Rua%20X") ||
+      buildMapsLink("Rua X").includes("Rua+X"),
+    "[TEST] maps link encodes spaces",
+  );
+  console.assert(
+    buildWazeLink("Rua X").includes("waze"),
+    "[TEST] waze link contains waze domain",
+  );
+  console.assert(
+    buildAppleMapsLink("Rua X").includes("maps.apple.com"),
+    "[TEST] apple maps link domain",
+  );
+  console.assert(
+    safeJsonParse<{ a: number }>('{"a":1}', { a: 0 }).a === 1,
+    "[TEST] safeJsonParse ok",
+  );
+  console.assert(
+    Array.isArray(safeJsonParse("nope", [] as unknown[])),
+    "[TEST] safeJsonParse fallback",
+  );
   console.assert(cn("a", false, "b") === "a b", "[TEST] cn join");
-  console.assert(cn("a", undefined, null, "b") === "a b", "[TEST] cn join ignores nullish");
+  console.assert(
+    cn("a", undefined, null, "b") === "a b",
+    "[TEST] cn join ignores nullish",
+  );
   console.assert(BRAND.google.startsWith("#"), "[TEST] brand color format");
   console.assert(PAYMENT.iban.startsWith("PT"), "[TEST] IBAN starts with PT");
 }
 
 // ====== UI ======
-function GlobalFonts(): React.JSX.Element {
-  return (
-    <style jsx global>{`
-     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Cormorant+Garamond:wght@400;500;600&family=Birthstone+Bounce:wght@400;500&display=swap');
-
-      :root {
-        --font-body: 'Inter', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, 'Noto Sans', 'Liberation Sans', sans-serif;
-        --font-quote: 'Inter', ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
-        --font-script: 'Birthstone Bounce', ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
-      }
-
-      .${SERIF_CLASS} { font-family: var(--font-body); }
-      .${QUOTE_CLASS} { font-family: var(--font-quote); }
-      .${SCRIPT_CLASS} { font-family: var(--font-script); }
-
-      html { scroll-behavior: smooth; }
-
-      @keyframes fadeIn {
-        from { opacity: 0; }
-        to { opacity: 1; }
-      }
-      .fadeIn { animation: fadeIn 420ms ease both; }
-
-      @keyframes menuIn {
-        from { opacity: 0; transform: translateY(-6px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-      .menuAnim { animation: menuIn 180ms ease both; }
-
-      .noSelect { user-select: none; -webkit-user-select: none; }
-
-      /* ✅ para o scrollIntoView não ficar escondido atrás do header fixo */
-section[id] { scroll-margin-top: 88px; }
-
-
-/* ✅ quando o menu abre, esconde o botão da música */
-html[data-menu-open="1"] .musicBtn {
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(6px);
-}
-
-    `}</style>
-  );
-}
 
 function Ornament(): React.JSX.Element {
   return (
-    <svg width="110" height="20" viewBox="0 0 110 20" fill="none" aria-hidden="true">
+    <svg
+      width="110"
+      height="20"
+      viewBox="0 0 110 20"
+      fill="none"
+      aria-hidden="true"
+    >
       <path
         d="M4 10c10-8 22-8 32 0 10 8 22 8 32 0 10-8 22-8 32 0"
         stroke={COLORS.sageDark}
@@ -350,17 +374,26 @@ function Ornament(): React.JSX.Element {
   );
 }
 
-function SectionHeader(props: { title: string; subtitle?: string }): React.JSX.Element {
+function SectionHeader(props: {
+  title: string;
+  subtitle?: string;
+}): React.JSX.Element {
   return (
     <div className="mx-auto max-w-3xl text-center">
       <div className="flex justify-center">
         <Ornament />
       </div>
-      <h2 className={cn("mt-3 text-4xl sm:text-5xl", SCRIPT_CLASS)} style={{ color: COLORS.sageDark }}>
+      <h2
+        className={cn("mt-3 text-4xl sm:text-5xl", SCRIPT_CLASS)}
+        style={{ color: COLORS.sageDark }}
+      >
         {props.title}
       </h2>
       {props.subtitle ? (
-        <p className="mt-5 text-[16px] leading-7" style={{ color: COLORS.muted }}>
+        <p
+          className="mt-5 text-[16px] leading-7"
+          style={{ color: COLORS.muted }}
+        >
           {props.subtitle}
         </p>
       ) : null}
@@ -368,8 +401,15 @@ function SectionHeader(props: { title: string; subtitle?: string }): React.JSX.E
   );
 }
 
-function NavLinkButton(props: { label: string; active: boolean; solid: boolean; onClick: () => void }): React.JSX.Element {
-  const base = props.solid ? "text-slate-700 hover:text-slate-950" : "text-white/90 hover:text-white";
+function NavLinkButton(props: {
+  label: string;
+  active: boolean;
+  solid: boolean;
+  onClick: () => void;
+}): React.JSX.Element {
+  const base = props.solid
+    ? "text-slate-700 hover:text-slate-950"
+    : "text-white/90 hover:text-white";
   const active = props.active ? "after:scale-x-100" : "after:scale-x-0";
 
   return (
@@ -381,9 +421,11 @@ function NavLinkButton(props: { label: string; active: boolean; solid: boolean; 
         "after:absolute after:left-0 after:-bottom-2 after:h-[2px] after:w-full after:bg-current after:origin-left after:transition-transform after:duration-200",
         "hover:after:scale-x-100",
         base,
-        active
+        active,
       )}
-      style={props.active && props.solid ? { color: COLORS.sageDark } : undefined}
+      style={
+        props.active && props.solid ? { color: COLORS.sageDark } : undefined
+      }
     >
       {props.label}
     </button>
@@ -404,7 +446,7 @@ function MobileDrawer(props: {
     <div
       className={cn(
         "md:hidden fixed inset-0 z-[1100] transition",
-        open ? "pointer-events-auto" : "pointer-events-none"
+        open ? "pointer-events-auto" : "pointer-events-none",
       )}
       aria-hidden={!open}
     >
@@ -412,7 +454,7 @@ function MobileDrawer(props: {
       <div
         className={cn(
           "absolute inset-0 transition-opacity duration-200",
-          open ? "opacity-100" : "opacity-0"
+          open ? "opacity-100" : "opacity-0",
         )}
         style={{ background: "rgba(0,0,0,0.62)" }}
         onClick={onClose}
@@ -422,7 +464,7 @@ function MobileDrawer(props: {
       <aside
         className={cn(
           "absolute left-0 top-0 h-[100dvh] w-[82vw] max-w-[340px] border-r shadow-2xl transition-transform duration-200",
-          open ? "translate-x-0" : "-translate-x-full"
+          open ? "translate-x-0" : "-translate-x-full",
         )}
         style={{ background: COLORS.paper, borderColor: COLORS.line }}
         role="dialog"
@@ -430,7 +472,10 @@ function MobileDrawer(props: {
       >
         <div className="flex h-full flex-col">
           {/* Header */}
-          <div className="flex items-center justify-between border-b px-4 py-4" style={{ borderColor: COLORS.line }}>
+          <div
+            className="flex items-center justify-between border-b px-4 py-4"
+            style={{ borderColor: COLORS.line }}
+          >
             <div className="flex items-center gap-3">
               <img
                 src={LOGO_URL}
@@ -447,7 +492,10 @@ function MobileDrawer(props: {
                 >
                   Menu
                 </div>
-                <div className={cn("text-[22px] leading-6", SCRIPT_CLASS)} style={{ color: COLORS.sageDark }}>
+                <div
+                  className={cn("text-[22px] leading-6", SCRIPT_CLASS)}
+                  style={{ color: COLORS.sageDark }}
+                >
                   Afonso & Jussara
                 </div>
               </div>
@@ -487,22 +535,42 @@ function MobileDrawer(props: {
                     style={{
                       borderRadius: RADIUS,
                       color: active ? COLORS.sageDark : COLORS.ink,
-                      background: active ? "rgba(174,183,162,0.10)" : "transparent",
+                      background: active
+                        ? "rgba(174,183,162,0.10)"
+                        : "transparent",
                     }}
                   >
                     <span>{it.label}</span>
-                    <span style={{ color: COLORS.muted, opacity: active ? 0.85 : 0.45 }}>›</span>
+                    <span
+                      style={{
+                        color: COLORS.muted,
+                        opacity: active ? 0.85 : 0.45,
+                      }}
+                    >
+                      ›
+                    </span>
                   </button>
 
-                  {!last ? <div className="mx-3 border-b" style={{ borderColor: COLORS.line }} /> : null}
+                  {!last ? (
+                    <div
+                      className="mx-3 border-b"
+                      style={{ borderColor: COLORS.line }}
+                    />
+                  ) : null}
                 </div>
               );
             })}
           </div>
 
           {/* Footer */}
-          <div className="border-t px-4 py-4" style={{ borderColor: COLORS.line }}>
-            <div className="text-[11px] tracking-[0.25em] uppercase" style={{ color: COLORS.muted }}>
+          <div
+            className="border-t px-4 py-4"
+            style={{ borderColor: COLORS.line }}
+          >
+            <div
+              className="text-[11px] tracking-[0.25em] uppercase"
+              style={{ color: COLORS.muted }}
+            >
               18 | 09 | 2026
             </div>
           </div>
@@ -571,7 +639,7 @@ function TopNav(props: {
       <header
         className={cn(
           "fixed top-0 z-[1000] w-full transition",
-          solid ? "bg-white/90 backdrop-blur border-b" : "bg-transparent"
+          solid ? "bg-white/90 backdrop-blur border-b" : "bg-transparent",
         )}
         style={{ borderColor: solid ? COLORS.line : "transparent" }}
       >
@@ -609,20 +677,59 @@ function TopNav(props: {
               onClick={() => setOpen((v) => !v)}
               className={cn(
                 "inline-flex h-10 w-10 items-center justify-center border transition",
-                solid ? "border-slate-200 bg-white" : "border-white/30 bg-black/45"
+                solid
+                  ? "border-slate-200 bg-white"
+                  : "border-white/30 bg-black/45",
               )}
               style={{ borderRadius: RADIUS }}
             >
               {open ? (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="M6 6l12 12" stroke={solid ? COLORS.ink : "white"} strokeWidth="2" strokeLinecap="round" />
-                  <path d="M18 6L6 18" stroke={solid ? COLORS.ink : "white"} strokeWidth="2" strokeLinecap="round" />
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M6 6l12 12"
+                    stroke={solid ? COLORS.ink : "white"}
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d="M18 6L6 18"
+                    stroke={solid ? COLORS.ink : "white"}
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
                 </svg>
               ) : (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="M4 7h16" stroke={solid ? COLORS.ink : "white"} strokeWidth="2" strokeLinecap="round" />
-                  <path d="M4 12h16" stroke={solid ? COLORS.ink : "white"} strokeWidth="2" strokeLinecap="round" />
-                  <path d="M4 17h16" stroke={solid ? COLORS.ink : "white"} strokeWidth="2" strokeLinecap="round" />
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M4 7h16"
+                    stroke={solid ? COLORS.ink : "white"}
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d="M4 12h16"
+                    stroke={solid ? COLORS.ink : "white"}
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d="M4 17h16"
+                    stroke={solid ? COLORS.ink : "white"}
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
                 </svg>
               )}
             </button>
@@ -640,13 +747,12 @@ function TopNav(props: {
               onClose={() => setOpen(false)}
               onGo={(id) => go(id)}
             />,
-            document.body
+            document.body,
           )
         : null}
     </>
   );
 }
-
 
 function MusicPlayer(): React.JSX.Element {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -696,52 +802,48 @@ function MusicPlayer(): React.JSX.Element {
     <>
       <audio ref={audioRef} src={MUSIC_URL} preload="auto" />
 
-    <div className="musicBtn fixed bottom-4 right-4 z-[900]">
+      <div className="musicBtn fixed bottom-4 right-4 z-[900]">
         {needsTap ? (
           <button
             type="button"
             onClick={() => void tryPlay()}
             className="border px-4 py-3 text-[11px] tracking-[0.22em] uppercase transition hover:bg-black/5"
-         style={{
-  borderColor: COLORS.beigeLine,
-  borderRadius: 999,
-  background: playing ? COLORS.sageDark : COLORS.beige,
-  color: playing ? "white" : COLORS.sageDark,
-  boxShadow: "0 6px 18px rgba(0,0,0,0.12)",
-}}
-
-
+            style={{
+              borderColor: COLORS.beigeLine,
+              borderRadius: 999,
+              background: playing ? COLORS.sageDark : COLORS.beige,
+              color: playing ? "white" : COLORS.sageDark,
+              boxShadow: "0 6px 18px rgba(0,0,0,0.12)",
+            }}
           >
             Tocar música ♪
           </button>
         ) : (
           <button
-  type="button"
-  onClick={() => (playing ? stop() : void tryPlay())}
-  className="inline-flex h-12 w-12 items-center justify-center border transition hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2"
-  style={{
-    // ✅ cores dinâmicas
-    borderColor: playing ? COLORS.sageDark : COLORS.beigeLine,
-    background: playing ? COLORS.sageDark : COLORS.paper,
-    borderRadius: 999,
-    color: playing ? "white" : COLORS.sageDark,
+            type="button"
+            onClick={() => (playing ? stop() : void tryPlay())}
+            className="inline-flex h-12 w-12 items-center justify-center border transition hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2"
+            style={{
+              // ✅ cores dinâmicas
+              borderColor: playing ? COLORS.sageDark : COLORS.beigeLine,
+              background: playing ? COLORS.sageDark : COLORS.paper,
+              borderRadius: 999,
+              color: playing ? "white" : COLORS.sageDark,
 
-    // ✅ ring (troca o laranja do browser pela tua cor)
-    // nota: focus-visible:ring-2 já cria ring; aqui ajustas a cor
-    boxShadow: "0 6px 18px rgba(0,0,0,0.12)",
-    // ringColor via inline (Tailwind não tem a tua cor dinâmica)
-    // truque: “simula” ring com outline
-    outline: "none",
-  }}
-  aria-label={playing ? "Parar música" : "Tocar música"}
-  title={playing ? "Parar música" : "Tocar música"}
->
-<span className="inline-flex" style={{ lineHeight: 1 }}>
-  {playing ? <IconPause /> : <IconPlay />}
-</span>
-
-</button>
-
+              // ✅ ring (troca o laranja do browser pela tua cor)
+              // nota: focus-visible:ring-2 já cria ring; aqui ajustas a cor
+              boxShadow: "0 6px 18px rgba(0,0,0,0.12)",
+              // ringColor via inline (Tailwind não tem a tua cor dinâmica)
+              // truque: “simula” ring com outline
+              outline: "none",
+            }}
+            aria-label={playing ? "Parar música" : "Tocar música"}
+            title={playing ? "Parar música" : "Tocar música"}
+          >
+            <span className="inline-flex" style={{ lineHeight: 1 }}>
+              {playing ? <IconPause /> : <IconPlay />}
+            </span>
+          </button>
         )}
       </div>
     </>
@@ -768,7 +870,11 @@ function Field(props: {
         placeholder={props.placeholder}
         onChange={(e) => props.onChange(e.target.value)}
         className="mt-2 w-full border bg-white px-4 py-3 text-sm outline-none"
-        style={{ borderColor: "#CBD5E1", color: COLORS.ink, borderRadius: RADIUS }}
+        style={{
+          borderColor: "#CBD5E1",
+          color: COLORS.ink,
+          borderRadius: RADIUS,
+        }}
       />
     </label>
   );
@@ -785,7 +891,6 @@ type DialCfg = {
   placeholder: string;
   format: (raw: string) => string; // raw contém só dígitos
 };
-
 
 function formatByGroups(digits: string, groups: number[], sep = "-"): string {
   let i = 0;
@@ -882,13 +987,15 @@ function getDialCfg(dial: string): DialCfg {
   return DIALS.find((d) => d.dial === dial) ?? DIALS[0]!;
 }
 
-
-
 function Hero(): React.JSX.Element {
   return (
     <section id="home" className="relative min-h-[92vh]">
       <div className="absolute inset-0">
-        <img src={HERO_IMAGE_URL} alt="Afonso e Jussara" className="h-full w-full object-cover" />
+        <img
+          src={HERO_IMAGE_URL}
+          alt="Afonso e Jussara"
+          className="h-full w-full object-cover"
+        />
         <div className="absolute inset-0 bg-black/45" />
       </div>
 
@@ -896,7 +1003,10 @@ function Hero(): React.JSX.Element {
         <div className="flex flex-col items-center gap-5">
           {/* QUADRADO DO LOGO — aqui é o “bloco azul” do teu print */}
           <div className="relative h-48 w-48 sm:h-52 sm:w-52">
-            <div className="absolute inset-0 " style={{ borderRadius: RADIUS }} />
+            <div
+              className="absolute inset-0 "
+              style={{ borderRadius: RADIUS }}
+            />
             <div className="absolute inset-0 flex items-center justify-center">
               <img
                 src={LOGO_URL}
@@ -910,11 +1020,17 @@ function Hero(): React.JSX.Element {
             </div>
           </div>
 
-          <div className={cn("text-5xl sm:text-6xl text-white", SCRIPT_CLASS)}>Afonso e Jussara</div>
-          <div className="text-[12px] sm:text-[13px] tracking-[0.55em] font-medium text-white/90">18 | 09 | 2026</div>
+          <div className={cn("text-5xl sm:text-6xl text-white", SCRIPT_CLASS)}>
+            Afonso e Jussara
+          </div>
+          <div className="text-[12px] sm:text-[13px] tracking-[0.55em] font-medium text-white/90">
+            18 | 09 | 2026
+          </div>
         </div>
 
-        <div className="mt-12 text-white/80 text-xs tracking-[0.25em] uppercase">Scroll</div>
+        <div className="mt-12 text-white/80 text-xs tracking-[0.25em] uppercase">
+          Scroll
+        </div>
         <div className="mt-2 h-10 w-px bg-white/40" />
       </div>
     </section>
@@ -927,8 +1043,9 @@ function Welcome(): React.JSX.Element {
       <div className="mx-auto max-w-6xl px-4 py-16">
         <div className="mx-auto max-w-3xl text-center">
           <p className="text-[16px] leading-7" style={{ color: COLORS.muted }}>
-            Olá! Criámos este site para partilhar convosco os detalhes do nosso casamento. Aqui encontram horários, locais
-            e a confirmação de presença — tudo num só sítio.
+            Olá! Criámos este site para partilhar convosco os detalhes do nosso
+            casamento. Aqui encontram horários, locais e a confirmação de
+            presença — tudo num só sítio.
           </p>
         </div>
       </div>
@@ -937,19 +1054,31 @@ function Welcome(): React.JSX.Element {
 }
 
 function Countdown(): React.JSX.Element {
-  const { isPast, days, hours, minutes, seconds } = useCountdown(WEDDING_DATETIME_LOCAL);
+  const { isPast, days, hours, minutes, seconds } = useCountdown(
+    WEDDING_DATETIME_LOCAL,
+  );
 
   return (
-    <section id="contagem" className="py-20" style={{ background: COLORS.sage }}>
+    <section
+      id="contagem"
+      className="py-20"
+      style={{ background: COLORS.sage }}
+    >
       <div className="mx-auto max-w-6xl px-4">
         <div className="text-center">
-          <div className={cn("text-5xl sm:text-6xl", SCRIPT_CLASS)} style={{ color: "white" }}>
+          <div
+            className={cn("text-5xl sm:text-6xl", SCRIPT_CLASS)}
+            style={{ color: "white" }}
+          >
             Contagem Regressiva
           </div>
         </div>
 
         {!isPast ? (
-          <div className="mx-auto mt-12 grid grid-cols-4 gap-2 sm:gap-4" style={{ maxWidth: 720 }}>
+          <div
+            className="mx-auto mt-12 grid grid-cols-4 gap-2 sm:gap-4"
+            style={{ maxWidth: 720 }}
+          >
             {[
               { label: "DIAS", value: days },
               { label: "HORAS", value: hours },
@@ -959,7 +1088,10 @@ function Countdown(): React.JSX.Element {
               <div
                 key={x.label}
                 className="bg-white/95 px-2 py-4 sm:px-3 sm:py-5 text-center"
-                style={{ boxShadow: "0 1px 0 rgba(0,0,0,0.06)", borderRadius: RADIUS }}
+                style={{
+                  boxShadow: "0 1px 0 rgba(0,0,0,0.06)",
+                  borderRadius: RADIUS,
+                }}
               >
                 <div
                   className={cn("tabular-nums", QUOTE_CLASS)}
@@ -982,7 +1114,9 @@ function Countdown(): React.JSX.Element {
             ))}
           </div>
         ) : (
-          <div className="mt-10 text-center text-white/90">Já chegou o grande dia 💍</div>
+          <div className="mt-10 text-center text-white/90">
+            Já chegou o grande dia 💍
+          </div>
         )}
       </div>
     </section>
@@ -1056,7 +1190,6 @@ function Carousel(props: {
     if (len < 2) return;
     if (paused) return;
 
-
     const id = window.setInterval(() => {
       next();
     }, intervalMs);
@@ -1094,32 +1227,34 @@ function Carousel(props: {
     setPaused(false);
   }
 
-  function renderMedia(item: MediaItem, extraStyle?: React.CSSProperties): React.JSX.Element {
+  function renderMedia(
+    item: MediaItem,
+    extraStyle?: React.CSSProperties,
+  ): React.JSX.Element {
     if (item.type === "video") {
-  return (
-    <video
-      src={item.src}
-      poster={item.poster}
-      autoPlay
-      loop
-      muted
-      playsInline
-      preload="metadata"
-      controls={false}
-      disablePictureInPicture
-      controlsList="nodownload noplaybackrate noremoteplayback noremoteplayback"
-      tabIndex={-1}
-      onContextMenu={(e) => e.preventDefault()}
-      className="absolute inset-0 h-full w-full"
-      style={{
-        objectFit: "contain",
-        pointerEvents: "none", // ✅ impede clique/pausa
-        ...extraStyle,
-      }}
-    />
-  );
-}
-
+      return (
+        <video
+          src={item.src}
+          poster={item.poster}
+          autoPlay
+          loop
+          muted
+          playsInline
+          preload="metadata"
+          controls={false}
+          disablePictureInPicture
+          controlsList="nodownload noplaybackrate noremoteplayback noremoteplayback"
+          tabIndex={-1}
+          onContextMenu={(e) => e.preventDefault()}
+          className="absolute inset-0 h-full w-full"
+          style={{
+            objectFit: "contain",
+            pointerEvents: "none", // ✅ impede clique/pausa
+            ...extraStyle,
+          }}
+        />
+      );
+    }
 
     return (
       <img
@@ -1128,7 +1263,9 @@ function Carousel(props: {
         draggable={false}
         className="absolute inset-0 h-full w-full"
         style={{ objectFit: "initial", ...extraStyle }}
-        onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
+        onError={(e) =>
+          ((e.currentTarget as HTMLImageElement).style.display = "none")
+        }
       />
     );
   }
@@ -1138,7 +1275,10 @@ function Carousel(props: {
   return (
     <div className="mx-auto mt-10 max-w-5xl">
       <div
-        className={cn("relative overflow-hidden border noSelect", len > 1 ? "cursor-grab active:cursor-grabbing" : "")}
+        className={cn(
+          "relative overflow-hidden border noSelect",
+          len > 1 ? "cursor-grab active:cursor-grabbing" : "",
+        )}
         style={{
           borderColor: COLORS.line,
           borderRadius: RADIUS,
@@ -1157,7 +1297,10 @@ function Carousel(props: {
           {prevItem ? (
             <div
               className="absolute inset-0"
-              style={{ opacity: fadeOn ? 0 : 1, transition: `opacity ${fadeMs}ms ease-in-out` }}
+              style={{
+                opacity: fadeOn ? 0 : 1,
+                transition: `opacity ${fadeMs}ms ease-in-out`,
+              }}
             >
               {renderMedia(prevItem)}
             </div>
@@ -1168,7 +1311,9 @@ function Carousel(props: {
             className="absolute inset-0"
             style={{
               opacity: prevItem ? (fadeOn ? 1 : 0) : 1,
-              transition: prevItem ? `opacity ${fadeMs}ms ease-in-out` : undefined,
+              transition: prevItem
+                ? `opacity ${fadeMs}ms ease-in-out`
+                : undefined,
             }}
           >
             {renderMedia(current)}
@@ -1203,24 +1348,38 @@ function Carousel(props: {
                   {media.map((m, i) => {
                     const active = i === idx;
 
-                    const thumb = m.type === "video" ? (
-                      <div className="relative h-full w-full">
-                        {m.poster ? (
-                          <img src={m.poster} alt="" className="h-full w-full object-cover" draggable={false} />
-                        ) : (
-                          <div className="h-full w-full" style={{ background: "rgba(0,0,0,0.20)" }} />
-                        )}
-                        <div
-                          className="absolute inset-0 flex items-center justify-center text-white"
-                          style={{ textShadow: "0 6px 12px rgba(0,0,0,0.6)" }}
-                          aria-hidden="true"
-                        >
-                          ▶
+                    const thumb =
+                      m.type === "video" ? (
+                        <div className="relative h-full w-full">
+                          {m.poster ? (
+                            <img
+                              src={m.poster}
+                              alt=""
+                              className="h-full w-full object-cover"
+                              draggable={false}
+                            />
+                          ) : (
+                            <div
+                              className="h-full w-full"
+                              style={{ background: "rgba(0,0,0,0.20)" }}
+                            />
+                          )}
+                          <div
+                            className="absolute inset-0 flex items-center justify-center text-white"
+                            style={{ textShadow: "0 6px 12px rgba(0,0,0,0.6)" }}
+                            aria-hidden="true"
+                          >
+                            ▶
+                          </div>
                         </div>
-                      </div>
-                    ) : (
-                      <img src={m.src} alt="" className="h-full w-full object-cover" draggable={false} />
-                    );
+                      ) : (
+                        <img
+                          src={m.src}
+                          alt=""
+                          className="h-full w-full object-cover"
+                          draggable={false}
+                        />
+                      );
 
                     return (
                       <button
@@ -1233,7 +1392,9 @@ function Carousel(props: {
                           width: active ? 46 : 42,
                           height: active ? 46 : 42,
                           borderRadius: 10,
-                          border: active ? "2px solid rgba(255,255,255,0.95)" : "1px solid rgba(255,255,255,0.25)",
+                          border: active
+                            ? "2px solid rgba(255,255,255,0.95)"
+                            : "1px solid rgba(255,255,255,0.25)",
                           opacity: active ? 1 : 0.8,
                           flex: "0 0 auto",
                           boxShadow: "0 10px 20px rgba(0,0,0,0.18)",
@@ -1253,8 +1414,6 @@ function Carousel(props: {
   );
 }
 
-
-
 function Couple(): React.JSX.Element {
   return (
     <section id="casal" className="bg-white">
@@ -1272,15 +1431,18 @@ function Couple(): React.JSX.Element {
               className="mx-auto h-44 w-44 sm:h-52 sm:w-52 rounded-full object-cover"
               style={{ objectPosition: PHOTO_POS_JUSSARA }}
             />
-            <div className="mt-5 text-xs sm:text-sm tracking-[0.22em] uppercase" style={{ color: COLORS.muted }}>
+            <div
+              className="mt-5 text-xs sm:text-sm tracking-[0.22em] uppercase"
+              style={{ color: COLORS.muted }}
+            >
               Jussara Martins
             </div>
             <p
               className="mx-auto mt-3 max-w-md text-[14px] sm:text-[15px] italic leading-6 sm:leading-7"
               style={{ color: COLORS.muted }}
             >
-              Vejo no Afonso um amor tranquilo e um abraço que cala o mundo. Com ele, o tempo abranda e tudo fica mais
-              simples.
+              Vejo no Afonso um amor tranquilo e um abraço que cala o mundo. Com
+              ele, o tempo abranda e tudo fica mais simples.
             </p>
           </div>
 
@@ -1291,90 +1453,114 @@ function Couple(): React.JSX.Element {
               className="mx-auto h-44 w-44 sm:h-52 sm:w-52 rounded-full object-cover"
               style={{ objectPosition: PHOTO_POS_AFONSO }}
             />
-            <div className="mt-5 text-xs sm:text-sm tracking-[0.22em] uppercase" style={{ color: COLORS.muted }}>
+            <div
+              className="mt-5 text-xs sm:text-sm tracking-[0.22em] uppercase"
+              style={{ color: COLORS.muted }}
+            >
               Afonso da Silva
             </div>
             <p
               className="mx-auto mt-3 max-w-md text-[14px] sm:text-[15px] italic leading-6 sm:leading-7"
               style={{ color: COLORS.muted }}
             >
-              Vejo a Jussara como uma mulher resiliente e inteira. Com ela, sinto-me seguro e motivado: é amor que me
-              levanta e me faz ir mais longe.
+              Vejo a Jussara como uma mulher resiliente e inteira. Com ela,
+              sinto-me seguro e motivado: é amor que me levanta e me faz ir mais
+              longe.
             </p>
           </div>
         </div>
 
         {/*<Carousel photos={GALLERY_PHOTOS} intervalMs={5200} fadeMs={1400} />*/}
-<Carousel items={GALLERY_MEDIA} intervalMs={5200} fadeMs={1400} />
+        <Carousel items={GALLERY_MEDIA} intervalMs={5200} fadeMs={1400} />
       </div>
     </section>
   );
 }
 
-function InfoCard(props: { label: string; value: string }): React.JSX.Element {
-  return (
-    <div className="border px-4 py-3" style={{ borderColor: COLORS.line, borderRadius: RADIUS }}>
-      <div className="text-[10px] tracking-[0.25em] uppercase" style={{ color: COLORS.muted }}>
-        {props.label}
-      </div>
-      <div className="mt-1 text-[14px]" style={{ color: COLORS.ink }}>
-        {props.value}
-      </div>
-    </div>
-  );
-}
-
-function LinkButton(props: { href: string; label: string }): React.JSX.Element {
-  return (
-    <a
-      href={props.href}
-      target="_blank"
-      rel="noreferrer"
-      className="border px-4 py-2 text-[11px] tracking-[0.22em] uppercase transition hover:bg-black/5 whitespace-nowrap"
-      style={{ borderColor: COLORS.line, color: COLORS.muted, borderRadius: 999 }}
-    >
-      {props.label}
-    </a>
-  );
-}
 function IconPin(): React.JSX.Element {
   return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <svg
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
       <path
         d="M12 22s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12Z"
         stroke={COLORS.sageDark}
         strokeWidth="1.8"
       />
-      <circle cx="12" cy="10" r="2.3" stroke={COLORS.sageDark} strokeWidth="1.8" />
+      <circle
+        cx="12"
+        cy="10"
+        r="2.3"
+        stroke={COLORS.sageDark}
+        strokeWidth="1.8"
+      />
     </svg>
   );
 }
 
 function IconHome(): React.JSX.Element {
   return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <svg
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
       <path
         d="M4 10.5 12 4l8 6.5V20a1.5 1.5 0 0 1-1.5 1.5H5.5A1.5 1.5 0 0 1 4 20v-9.5Z"
         stroke={COLORS.sageDark}
         strokeWidth="1.8"
         strokeLinejoin="round"
       />
-      <path d="M10 21v-6h4v6" stroke={COLORS.sageDark} strokeWidth="1.8" strokeLinejoin="round" />
+      <path
+        d="M10 21v-6h4v6"
+        stroke={COLORS.sageDark}
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
 
 function IconClock(): React.JSX.Element {
   return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="12" cy="12" r="8" stroke={COLORS.sageDark} strokeWidth="1.8" />
-      <path d="M12 7v5l3 2" stroke={COLORS.sageDark} strokeWidth="1.8" strokeLinecap="round" />
+    <svg
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <circle
+        cx="12"
+        cy="12"
+        r="8"
+        stroke={COLORS.sageDark}
+        strokeWidth="1.8"
+      />
+      <path
+        d="M12 7v5l3 2"
+        stroke={COLORS.sageDark}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
 function IconPlay(): React.JSX.Element {
   return (
-    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <svg
+      width="32"
+      height="32"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
       <path d="M9 7v10l9-5-9-5Z" fill="currentColor" />
     </svg>
   );
@@ -1382,7 +1568,13 @@ function IconPlay(): React.JSX.Element {
 
 function IconPause(): React.JSX.Element {
   return (
-    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <svg
+      width="32"
+      height="32"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
       <path d="M7 7h4v10H7V7Zm6 0h4v10h-4V7Z" fill="currentColor" />
     </svg>
   );
@@ -1425,7 +1617,12 @@ function TravelButtons(props: { destination: string }): React.JSX.Element {
               className="inline-flex h-9 w-9 items-center justify-center overflow-hidden"
               style={{ borderRadius: 999, background: "white" }}
             >
-              <img src={it.src} alt="" className="h-9 w-9 object-cover" draggable={false} />
+              <img
+                src={it.src}
+                alt=""
+                className="h-9 w-9 object-cover"
+                draggable={false}
+              />
             </span>
           </a>
         ))}
@@ -1433,7 +1630,6 @@ function TravelButtons(props: { destination: string }): React.JSX.Element {
     </div>
   );
 }
-
 
 function LocationBlock(props: {
   title: string;
@@ -1463,7 +1659,10 @@ function LocationBlock(props: {
     <div className="mx-auto mt-14 max-w-5xl">
       {/* ✅ FOTO EM CIMA (como tinhas) */}
       {props.hero ? (
-        <div className="overflow-hidden border" style={{ borderColor: COLORS.line, borderRadius: RADIUS }}>
+        <div
+          className="overflow-hidden border"
+          style={{ borderColor: COLORS.line, borderRadius: RADIUS }}
+        >
           <img
             src={props.hero}
             alt={props.title}
@@ -1471,7 +1670,7 @@ function LocationBlock(props: {
               "w-full",
               props.heroFit === "contain"
                 ? "h-[360px] sm:h-[520px] object-contain bg-black/5"
-                : "h-[360px] sm:h-[520px] object-cover"
+                : "h-[360px] sm:h-[520px] object-cover",
             )}
             onError={(e) => {
               (e.currentTarget as HTMLImageElement).style.display = "none";
@@ -1481,83 +1680,128 @@ function LocationBlock(props: {
       ) : null}
 
       {/* ✅ CARD (layout igual ao print) */}
-      <div className="mt-10 border bg-white" style={{ borderColor: COLORS.line, borderRadius: RADIUS, overflow: "hidden" }}>
-       {/* DATA + HORA (sempre lado a lado, até no mobile) */}
-<div className="px-7 py-7 sm:px-8 sm:py-8">
-  <div
-    className="grid items-center gap-4"
-    style={{
-      gridTemplateColumns: "1fr 1fr", // ✅ sempre 2 colunas
-    }}
-  >
-    {/* ESQUERDA: DATA */}
-    <div className="flex items-center gap-4">
       <div
-        className="flex h-16 w-16 items-center justify-center sm:h-20 sm:w-20"
-        style={{ background: COLORS.sage, borderRadius: RADIUS }}
+        className="mt-10 border bg-white"
+        style={{
+          borderColor: COLORS.line,
+          borderRadius: RADIUS,
+          overflow: "hidden",
+        }}
       >
-        <div className={cn("text-3xl sm:text-4xl", QUOTE_CLASS)} style={{ color: "white", fontWeight: 600 }}>
-          {props.day}
-        </div>
-      </div>
+        {/* DATA + HORA (sempre lado a lado, até no mobile) */}
+        <div className="px-7 py-7 sm:px-8 sm:py-8">
+          <div
+            className="grid items-center gap-4"
+            style={{
+              gridTemplateColumns: "1fr 1fr", // ✅ sempre 2 colunas
+            }}
+          >
+            {/* ESQUERDA: DATA */}
+            <div className="flex items-center gap-4">
+              <div
+                className="flex h-16 w-16 items-center justify-center sm:h-20 sm:w-20"
+                style={{ background: COLORS.sage, borderRadius: RADIUS }}
+              >
+                <div
+                  className={cn("text-3xl sm:text-4xl", QUOTE_CLASS)}
+                  style={{ color: "white", fontWeight: 600 }}
+                >
+                  {props.day}
+                </div>
+              </div>
 
-      <div className="min-w-0">
-        <div className={cn("text-xl sm:text-2xl truncate", QUOTE_CLASS)} style={{ color: COLORS.ink }}>
-          {props.month}
-        </div>
-        <div className="mt-1 text-[11px] sm:text-[12px] tracking-[0.28em] uppercase" style={{ color: COLORS.muted }}>
-          {props.year}
-        </div>
-      </div>
-    </div>
+              <div className="min-w-0">
+                <div
+                  className={cn("text-xl sm:text-2xl truncate", QUOTE_CLASS)}
+                  style={{ color: COLORS.ink }}
+                >
+                  {props.month}
+                </div>
+                <div
+                  className="mt-1 text-[11px] sm:text-[12px] tracking-[0.28em] uppercase"
+                  style={{ color: COLORS.muted }}
+                >
+                  {props.year}
+                </div>
+              </div>
+            </div>
 
-    {/* DIREITA: HORÁRIO */}
-    <div className="flex items-center justify-end gap-3">
-      <div
-        className="inline-flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center"
-        style={{ background: "rgba(174,183,162,0.18)", borderRadius: 999 }}
-      >
-        <IconClock />
-      </div>
+            {/* DIREITA: HORÁRIO */}
+            <div className="flex items-center justify-end gap-3">
+              <div
+                className="inline-flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center"
+                style={{
+                  background: "rgba(174,183,162,0.18)",
+                  borderRadius: 999,
+                }}
+              >
+                <IconClock />
+              </div>
 
-      <div className="text-right">
-        <div className="text-[11px] tracking-[0.28em] uppercase" style={{ color: COLORS.muted, fontWeight: 700 }}>
-          HORÁRIO
-        </div>
-        <div className={cn("mt-1 text-[16px] sm:text-[18px]", QUOTE_CLASS)} style={{ color: COLORS.ink }}>
-          {props.time}
-        </div>
-        {props.timeHint ? (
-          <div className="text-[12px]" style={{ color: COLORS.muted }}>
-            {props.timeHint}
+              <div className="text-right">
+                <div
+                  className="text-[11px] tracking-[0.28em] uppercase"
+                  style={{ color: COLORS.muted, fontWeight: 700 }}
+                >
+                  HORÁRIO
+                </div>
+                <div
+                  className={cn("mt-1 text-[16px] sm:text-[18px]", QUOTE_CLASS)}
+                  style={{ color: COLORS.ink }}
+                >
+                  {props.time}
+                </div>
+                {props.timeHint ? (
+                  <div className="text-[12px]" style={{ color: COLORS.muted }}>
+                    {props.timeHint}
+                  </div>
+                ) : null}
+              </div>
+            </div>
           </div>
-        ) : null}
-      </div>
-    </div>
-  </div>
-</div>
-
+        </div>
 
         {/* LOCAL + INICIAR VIAGEM (igual ao print) */}
-        <div className="border-t px-7 py-7 sm:px-8" style={{ borderColor: COLORS.line, background: "rgba(243,238,228,0.22)" }}>
+        <div
+          className="border-t px-7 py-7 sm:px-8"
+          style={{
+            borderColor: COLORS.line,
+            background: "rgba(243,238,228,0.22)",
+          }}
+        >
           <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 items-center justify-center" style={{ background: "rgba(174,183,162,0.22)", borderRadius: RADIUS }}>
+              <div
+                className="flex h-12 w-12 items-center justify-center"
+                style={{
+                  background: "rgba(174,183,162,0.22)",
+                  borderRadius: RADIUS,
+                }}
+              >
                 {props.icon === "pin" ? <IconPin /> : <IconHome />}
               </div>
 
               <div>
-                <div className={cn("text-[16px]", QUOTE_CLASS)} style={{ color: COLORS.ink }}>
+                <div
+                  className={cn("text-[16px]", QUOTE_CLASS)}
+                  style={{ color: COLORS.ink }}
+                >
                   {props.place}
                 </div>
 
                 {props.venueLabel ? (
-                  <div className="mt-1 text-[11px] tracking-[0.28em] uppercase" style={{ color: COLORS.muted }}>
+                  <div
+                    className="mt-1 text-[11px] tracking-[0.28em] uppercase"
+                    style={{ color: COLORS.muted }}
+                  >
                     {props.venueLabel}
                   </div>
                 ) : null}
 
-                <div className="mt-3 text-[13px] leading-6" style={{ color: COLORS.muted }}>
+                <div
+                  className="mt-3 text-[13px] leading-6"
+                  style={{ color: COLORS.muted }}
+                >
                   {props.address}
                 </div>
               </div>
@@ -1569,13 +1813,20 @@ function LocationBlock(props: {
         </div>
 
         {/* MAPA (mantém, oculto por defeito) */}
-        <div className="border-t px-7 py-6 sm:px-8" style={{ borderColor: COLORS.line }}>
+        <div
+          className="border-t px-7 py-6 sm:px-8"
+          style={{ borderColor: COLORS.line }}
+        >
           <div className="flex justify-center">
             <button
               type="button"
               onClick={() => setShowMap((v) => !v)}
               className="border px-6 py-2 text-[11px] tracking-[0.22em] uppercase transition hover:bg-black/5"
-              style={{ borderColor: COLORS.line, color: COLORS.muted, borderRadius: 999 }}
+              style={{
+                borderColor: COLORS.line,
+                color: COLORS.muted,
+                borderRadius: 999,
+              }}
             >
               {showMap ? "Ocultar mapa" : "Mostrar mapa"}
             </button>
@@ -1584,7 +1835,10 @@ function LocationBlock(props: {
       </div>
 
       {showMap ? (
-        <div className="mx-auto mt-10 max-w-5xl overflow-hidden" style={{ border: `1px solid ${COLORS.line}`, borderRadius: RADIUS }}>
+        <div
+          className="mx-auto mt-10 max-w-5xl overflow-hidden"
+          style={{ border: `1px solid ${COLORS.line}`, borderRadius: RADIUS }}
+        >
           <iframe
             title={`Mapa ${props.title}`}
             src={embed}
@@ -1597,8 +1851,6 @@ function LocationBlock(props: {
     </div>
   );
 }
-
-
 
 function Ceremony(): React.JSX.Element {
   return (
@@ -1622,10 +1874,6 @@ function Reception(): React.JSX.Element {
   );
 }
 
-
-
-
-
 // ====== Presence (Grupo / Associados + Atualizar por Código de Família) ======
 type RsvpMember = {
   guestId: string;
@@ -1640,13 +1888,24 @@ type RsvpApiResponse =
       ok: true;
       mode: "group";
       group: { id: string; name: string; code?: string };
-      members: Array<{ guestId: string; name: string; role?: string; isChild?: boolean }>;
+      members: Array<{
+        guestId: string;
+        name: string;
+        role?: string;
+        isChild?: boolean;
+      }>;
     }
   | {
       ok: true;
       mode: "family";
       group: { id: string; name: string; code: string };
-      members: Array<{ guestId: string; name: string; role?: string; isChild?: boolean; attendance: "yes" | "no" }>;
+      members: Array<{
+        guestId: string;
+        name: string;
+        role?: string;
+        isChild?: boolean;
+        attendance: "yes" | "no";
+      }>;
     }
   | {
       ok: true;
@@ -1666,6 +1925,7 @@ function Presence(): React.JSX.Element {
   const [email, setEmail] = useState("");
   const [dial, setDial] = useState("+351");
   const [phone, setPhone] = useState("");
+  const [isChild, setIsChild] = useState(false);
 
   // family update
   const [familyCode, setFamilyCode] = useState("");
@@ -1678,10 +1938,18 @@ function Presence(): React.JSX.Element {
   const [status, setStatus] = useState<"idle" | "sending" | "error">("idle");
   const [statusMsg, setStatusMsg] = useState("");
 
+  // Modal resultado
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState("");
   const [modalText, setModalText] = useState("");
   const [modalFamilyCode, setModalFamilyCode] = useState<string | null>(null);
+
+  // Modal ajuda
+  const [helpOpen, setHelpOpen] = useState(false);
+
+  // ✅ para portal (evita bugs de scroll/z-index em mobile)
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const cfg = getDialCfg(dial);
   const emailOk = isValidEmail(email);
@@ -1703,12 +1971,44 @@ function Presence(): React.JSX.Element {
         ? canSubmitGroup
         : canSubmitForm;
 
+  const anyModalOpen = helpOpen || modalOpen;
+
+  // ✅ ESC para fechar modais
+  useEffect(() => {
+    if (!anyModalOpen) return;
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setHelpOpen(false);
+        setModalOpen(false);
+        setModalFamilyCode(null);
+      }
+    };
+
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [anyModalOpen]);
+
+  // ✅ bloqueia scroll do fundo (mas mantém scroll do modal)
+  useEffect(() => {
+    if (!mounted) return;
+    if (!anyModalOpen) return;
+
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [anyModalOpen, mounted]);
+
   function resetNormal(): void {
     setAttendance("yes");
     setName("");
     setEmail("");
     setDial("+351");
     setPhone("");
+    setIsChild(false);
 
     setStage("form");
     setGroup(null);
@@ -1723,17 +2023,23 @@ function Presence(): React.JSX.Element {
     setGroup(null);
     setMembers([]);
     setStage("familyForm");
+
     setStatus("idle");
     setStatusMsg("");
+
     if (!keepCode) setFamilyCode("");
   }
 
   function switchFlow(next: "normal" | "family"): void {
     setFlow(next);
+    setIsChild(false);
+    setHelpOpen(false);
+
     setStatus("idle");
     setStatusMsg("");
     setGroup(null);
     setMembers([]);
+
     if (next === "family") setStage("familyForm");
     else setStage("form");
   }
@@ -1762,7 +2068,6 @@ function Presence(): React.JSX.Element {
 
   function setAttendanceSmart(v: "yes" | "no"): void {
     setAttendance(v);
-    // aplica a todos quando estás a editar uma lista
     if (stage === "group" || stage === "family") {
       setMembers((prev) => prev.map((m) => ({ ...m, attendance: v })));
     }
@@ -1825,6 +2130,7 @@ function Presence(): React.JSX.Element {
               dial,
               phoneDigits: onlyDigits(phone),
               phone: `${dial} ${onlyDigits(phone)}`.trim(),
+              isChild,
             };
 
     try {
@@ -1838,7 +2144,7 @@ function Presence(): React.JSX.Element {
 
       if (!res.ok || data.ok === false) throw new Error((data as any).error || `Falhou (${res.status}).`);
 
-      // ===== 1) GROUP (fluxo normal)
+      // 1) GROUP (fluxo normal)
       if (data.ok && data.mode === "group") {
         setGroup(data.group);
         setMembers(
@@ -1855,7 +2161,7 @@ function Presence(): React.JSX.Element {
         return;
       }
 
-      // ===== 2) FAMILY (update por código)
+      // 2) FAMILY (update por código)
       if (data.ok && data.mode === "family") {
         setGroup({ id: data.group.id, name: data.group.name, code: data.group.code });
         setMembers(
@@ -1872,14 +2178,13 @@ function Presence(): React.JSX.Element {
         return;
       }
 
-      // ===== 3) DONE
+      // 3) DONE
       if (data.ok && data.mode === "done") {
         const isUpdate = data.action === "updated";
 
-        const code = (data.familyCode || group?.code || "").trim();
-        setModalFamilyCode(code ? code : null);
-
+        // ✅ no modo "family" NÃO mostrar o código novamente (é o mesmo)
         if (flow === "family") {
+          setModalFamilyCode(null);
           setModalTitle(isUpdate ? "Atualizado! ✅" : "Feito! ✅");
           setModalText(
             isUpdate
@@ -1890,6 +2195,10 @@ function Presence(): React.JSX.Element {
           setModalOpen(true);
           return;
         }
+
+        // modo normal: faz sentido mostrar o código (para futuras atualizações)
+        const code = (data.familyCode || group?.code || "").trim();
+        setModalFamilyCode(code ? code : null);
 
         const title =
           attendance === "yes"
@@ -1926,15 +2235,186 @@ function Presence(): React.JSX.Element {
     }
   }
 
+  // ✅ modais via portal (z-index acima do menu, scroll ok em mobile)
+  const Modals = mounted
+    ? createPortal(
+        <>
+          {/* ===== MODAL AJUDA ===== */}
+          {helpOpen ? (
+            <div
+              className="fixed inset-0 z-[3000] overflow-y-auto"
+              style={{ background: "rgba(0,0,0,0.55)", WebkitOverflowScrolling: "touch" }}
+              role="dialog"
+              aria-modal="true"
+              onClick={() => setHelpOpen(false)}
+            >
+              <div className="min-h-[100dvh] px-4 py-6 flex items-start sm:items-center justify-center">
+                <div
+                  className="w-full max-w-md border bg-white p-6"
+                  style={{
+                    borderColor: COLORS.line,
+                    borderRadius: RADIUS,
+                    maxHeight: "88dvh",
+                    overflowY: "auto",
+                    WebkitOverflowScrolling: "touch",
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className={cn("text-3xl", SCRIPT_CLASS)} style={{ color: COLORS.sageDark }}>
+                    Como funciona
+                  </div>
+
+                  <div className="mt-4 space-y-4" style={{ color: COLORS.muted }}>
+                    <div>
+                      <div className="text-[11px] tracking-[0.25em] uppercase" style={{ fontWeight: 700 }}>
+                        1) Confirmar presença
+                      </div>
+                      <div className="mt-2 text-[14px] leading-7">
+                        Escolhe <b>Sim</b> ou <b>Não</b>, preenche <b>Nome</b>, <b>Email</b> e <b>Telemóvel</b> e carrega
+                        em <b>Confirmar</b>.
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-[11px] tracking-[0.25em] uppercase" style={{ fontWeight: 700 }}>
+                        2) Se aparecer “Grupo”
+                      </div>
+                      <div className="mt-2 text-[14px] leading-7">
+                        Significa que existem <b>várias pessoas associadas</b> ao teu contacto. Marca <b>Sim/Não</b> para
+                        cada pessoa (o botão de cima aplica a todos) e depois carrega em <b>Confirmar grupo</b>.
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-[11px] tracking-[0.25em] uppercase" style={{ fontWeight: 700 }}>
+                        3) Criança (≤ 9 anos)
+                      </div>
+                      <div className="mt-2 text-[14px] leading-7">
+                        Marca esta opção <b>apenas</b> quando estás a registar a presença de uma criança.
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-[11px] tracking-[0.25em] uppercase" style={{ fontWeight: 700 }}>
+                        4) Atualizar por código
+                      </div>
+                      <div className="mt-2 text-[14px] leading-7">
+                        Se já tens um <b>Código de família</b>, usa <b>“Atualizar por código”</b>. Coloca o código,
+                        carrega <b>Carregar grupo</b>, ajusta as respostas e finaliza em <b>Atualizar confirmações</b>.
+                      </div>
+                    </div>
+
+                    <div className="text-[13px] leading-6">
+                      Se algo não bater certo, confirma na mesma e depois fala connosco — nós ajustamos.
+                    </div>
+                  </div>
+
+                  <div className="mt-6 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setHelpOpen(false)}
+                      className="border px-5 py-2 text-[11px] tracking-[0.22em] uppercase transition hover:bg-black/5"
+                      style={{ borderColor: COLORS.line, color: COLORS.muted, borderRadius: 999 }}
+                    >
+                      Fechar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {/* ===== MODAL RESULTADO ===== */}
+          {modalOpen ? (
+            <div
+              className="fixed inset-0 z-[3000] overflow-y-auto"
+              style={{ background: "rgba(0,0,0,0.55)", WebkitOverflowScrolling: "touch" }}
+              role="dialog"
+              aria-modal="true"
+              onClick={() => {
+                setModalOpen(false);
+                setModalFamilyCode(null);
+              }}
+            >
+              <div className="min-h-[100dvh] px-4 py-6 flex items-start sm:items-center justify-center">
+                <div
+                  className="w-full max-w-md border bg-white p-6"
+                  style={{
+                    borderColor: COLORS.line,
+                    borderRadius: RADIUS,
+                    maxHeight: "88dvh",
+                    overflowY: "auto",
+                    WebkitOverflowScrolling: "touch",
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className={cn("text-3xl", SCRIPT_CLASS)} style={{ color: COLORS.sageDark }}>
+                    {modalTitle}
+                  </div>
+
+                  <div className="mt-3 text-[15px] leading-7" style={{ color: COLORS.muted }}>
+                    {modalText}
+                  </div>
+
+                  {modalFamilyCode ? (
+                    <div className="mt-4">
+                      <CopyPill label="Código de família" value={modalFamilyCode} />
+                      <div className="mt-2 text-[12px]" style={{ color: COLORS.muted }}>
+                        Guarda este código para atualizar a confirmação do grupo mais tarde.
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="mt-6 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModalOpen(false);
+                        setModalFamilyCode(null);
+                      }}
+                      className="border px-5 py-2 text-[11px] tracking-[0.22em] uppercase transition hover:bg-black/5"
+                      style={{ borderColor: COLORS.line, color: COLORS.muted, borderRadius: 999 }}
+                    >
+                      Fechar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </>,
+        document.body
+      )
+    : null;
+
   return (
     <section id="presenca" className="bg-white">
       <div className="mx-auto max-w-6xl px-4 py-20">
         <SectionHeader title="Presença" subtitle="Confirma para conseguirmos organizar tudo direitinho." />
 
-        <div
-          className="mx-auto mt-14 max-w-2xl border bg-white p-7 sm:p-8"
-          style={{ borderColor: COLORS.line, borderRadius: RADIUS }}
-        >
+        <div className="mx-auto mt-14 max-w-2xl border bg-white p-7 sm:p-8" style={{ borderColor: COLORS.line, borderRadius: RADIUS }}>
+          {/* ✅ Botão ajuda pequeno, em cima (antes dos tabs) */}
+          <div className="mb-4 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setHelpOpen(true)}
+              aria-label="Ajuda"
+              title="Ajuda"
+              className="inline-flex items-center justify-center transition hover:scale-[1.04]"
+              style={{
+                height: 30,
+                width: 30,
+                borderRadius: 999,
+                background: COLORS.sageDark,
+                color: "white",
+                boxShadow: "0 10px 22px rgba(0,0,0,0.12)",
+                border: "1px solid rgba(255,255,255,0.18)",
+              }}
+            >
+              <span style={{ fontWeight: 900, fontSize: 15, lineHeight: 1 }}>!</span>
+            </button>
+          </div>
+
           {/* Tabs */}
           <div className="mb-6 grid grid-cols-2 gap-2">
             {(
@@ -1964,7 +2444,6 @@ function Presence(): React.JSX.Element {
           </div>
 
           <form onSubmit={onSubmit} className="space-y-6">
-            {/* ========== FLOW NORMAL ========= */}
             {flow === "normal" ? (
               <>
                 {/* Botões Sim/Não */}
@@ -2090,12 +2569,32 @@ function Presence(): React.JSX.Element {
                   </div>
                 </div>
 
-                {/* BLOCO DO GRUPO / ASSOCIADOS */}
+                {stage === "form" ? (
+                  <div className="border p-4" style={{ borderColor: COLORS.line, borderRadius: RADIUS, background: "rgba(243,238,228,0.18)" }}>
+                    <label className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={isChild}
+                        onChange={(e) => {
+                          kickBackToFormIfEditing();
+                          setIsChild(e.target.checked);
+                        }}
+                        className="h-5 w-5"
+                        style={{ accentColor: COLORS.sageDark, transform: "scale(1.05)" }}
+                      />
+                      <span className="text-[11px] tracking-[0.22em] uppercase" style={{ color: COLORS.muted, fontWeight: 700 }}>
+                        Criança (≤ 9 anos)
+                      </span>
+                    </label>
+                    {/* <div className="mt-2 text-[12px]" style={{ color: COLORS.muted }}>
+                      Marca esta opção se a presença que estás a registar é de uma criança.
+                    </div> */}
+                  </div>
+                ) : null}
+
+                {/* BLOCO DO GRUPO */}
                 {stage === "group" && group ? (
-                  <div
-                    className="border p-4"
-                    style={{ borderColor: COLORS.line, borderRadius: RADIUS, background: "rgba(243,238,228,0.18)" }}
-                  >
+                  <div className="border p-4" style={{ borderColor: COLORS.line, borderRadius: RADIUS, background: "rgba(243,238,228,0.18)" }}>
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="text-[10px] tracking-[0.25em] uppercase" style={{ color: COLORS.muted }}>
@@ -2188,7 +2687,6 @@ function Presence(): React.JSX.Element {
                 </button>
               </>
             ) : (
-              // ========== FLOW FAMILY ==========
               <>
                 <label className="block">
                   <div className="text-[13px] font-medium" style={{ color: COLORS.muted }}>
@@ -2206,11 +2704,8 @@ function Presence(): React.JSX.Element {
                   </div>
                 </label>
 
-                {(stage === "family" || stage === "familyForm") && group && stage === "family" ? (
-                  <div
-                    className="border p-4"
-                    style={{ borderColor: COLORS.line, borderRadius: RADIUS, background: "rgba(243,238,228,0.18)" }}
-                  >
+                {stage === "family" && group ? (
+                  <div className="border p-4" style={{ borderColor: COLORS.line, borderRadius: RADIUS, background: "rgba(243,238,228,0.18)" }}>
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="text-[10px] tracking-[0.25em] uppercase" style={{ color: COLORS.muted }}>
@@ -2219,11 +2714,6 @@ function Presence(): React.JSX.Element {
                         <div className={cn("mt-1 text-[18px]", QUOTE_CLASS)} style={{ color: COLORS.ink }}>
                           {group.name}
                         </div>
-                        {group.code ? (
-                          <div className="mt-1 text-[12px]" style={{ color: COLORS.muted }}>
-                            Código: <span style={{ color: COLORS.ink, fontWeight: 600 }}>{group.code}</span>
-                          </div>
-                        ) : null}
                       </div>
 
                       <button
@@ -2285,7 +2775,6 @@ function Presence(): React.JSX.Element {
                   </div>
                 ) : null}
 
-                {/* aplicar a todos (só quando já carregou membros) */}
                 {stage === "family" && members.length > 0 ? (
                   <div className="grid grid-cols-2 gap-2">
                     {(
@@ -2299,12 +2788,7 @@ function Presence(): React.JSX.Element {
                         type="button"
                         onClick={() => setAttendanceSmart(x.v)}
                         className="border px-4 py-3 text-[11px] tracking-[0.22em] uppercase transition"
-                        style={{
-                          borderRadius: RADIUS,
-                          borderColor: COLORS.line,
-                          color: COLORS.muted,
-                          background: "white",
-                        }}
+                        style={{ borderRadius: RADIUS, borderColor: COLORS.line, color: COLORS.muted, background: "white" }}
                       >
                         {x.l}
                       </button>
@@ -2324,11 +2808,7 @@ function Presence(): React.JSX.Element {
                     opacity: status === "sending" || !canSubmit ? 0.6 : 1,
                   }}
                 >
-                  {status === "sending"
-                    ? "A enviar..."
-                    : stage === "family"
-                      ? "Atualizar confirmações"
-                      : "Carregar grupo"}
+                  {status === "sending" ? "A enviar..." : stage === "family" ? "Atualizar confirmações" : "Carregar grupo"}
                 </button>
               </>
             )}
@@ -2341,81 +2821,11 @@ function Presence(): React.JSX.Element {
           </form>
         </div>
 
-        {/* MODAL */}
-        {modalOpen ? (
-          <div
-            className="fixed inset-0 z-[999] flex items-center justify-center px-4"
-            style={{ background: "rgba(0,0,0,0.55)" }}
-            role="dialog"
-            aria-modal="true"
-          >
-            <div className="w-full max-w-md border bg-white p-6" style={{ borderColor: COLORS.line, borderRadius: RADIUS }}>
-              <div className={cn("text-3xl", SCRIPT_CLASS)} style={{ color: COLORS.sageDark }}>
-                {modalTitle}
-              </div>
-
-              <div className="mt-3 text-[15px] leading-7" style={{ color: COLORS.muted }}>
-                {modalText}
-              </div>
-
-              {modalFamilyCode ? (
-                <div className="mt-4">
-                  <CopyPill label="Código de família" value={modalFamilyCode} />
-                  <div className="mt-2 text-[12px]" style={{ color: COLORS.muted }}>
-                    Guarda este código para atualizar a confirmação do grupo mais tarde.
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="mt-6 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setModalOpen(false);
-                    setModalFamilyCode(null);
-                  }}
-                  className="border px-5 py-2 text-[11px] tracking-[0.22em] uppercase transition hover:bg-black/5"
-                  style={{ borderColor: COLORS.line, color: COLORS.muted, borderRadius: 999 }}
-                >
-                  Fechar
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
+        {Modals}
       </div>
     </section>
   );
 }
-
-
-function TextArea(props: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  rows?: number;
-  placeholder?: string;
-  required?: boolean;
-}): React.JSX.Element {
-  return (
-    <label className="block">
-      <div className="text-[13px] font-medium" style={{ color: COLORS.muted }}>
-        {props.label}
-      </div>
-
-      <textarea
-        value={props.value}
-        rows={props.rows || 5}
-        placeholder={props.placeholder}
-        required={props.required}
-        onChange={(e) => props.onChange(e.target.value)}
-        className="mt-2 w-full border bg-white px-4 py-3 text-sm outline-none"
-        style={{ borderColor: "#CBD5E1", color: COLORS.ink, borderRadius: RADIUS }}
-      />
-    </label>
-  );
-}
-
 
 function Guestbook(): React.JSX.Element {
   const MAX_ITEMS = 50;
@@ -2425,8 +2835,12 @@ function Guestbook(): React.JSX.Element {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
 
-  const [items, setItems] = useState<Array<{ name: string; message: string; createdAt: string }>>([]);
-  const [status, setStatus] = useState<"idle" | "sending" | "ok" | "error">("idle");
+  const [items, setItems] = useState<
+    Array<{ name: string; message: string; createdAt: string }>
+  >([]);
+  const [status, setStatus] = useState<"idle" | "sending" | "ok" | "error">(
+    "idle",
+  );
   const [statusMsg, setStatusMsg] = useState("");
 
   const canSubmit = name.trim().length > 1 && message.trim().length > 2;
@@ -2444,12 +2858,20 @@ function Guestbook(): React.JSX.Element {
     async function load(): Promise<void> {
       try {
         const res = await fetch(GUESTBOOK_ENDPOINT, { method: "GET" });
-        const data = (await res.json()) as { ok: boolean; items?: typeof items; error?: string };
-        if (!res.ok || !data.ok) throw new Error(data.error || "Falha ao carregar recados.");
+        const data = (await res.json()) as {
+          ok: boolean;
+          items?: typeof items;
+          error?: string;
+        };
+        if (!res.ok || !data.ok)
+          throw new Error(data.error || "Falha ao carregar recados.");
 
         const normalized = (data.items || [])
           .slice(0, MAX_ITEMS)
-          .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+          .sort(
+            (a, b) =>
+              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+          );
 
         setItems(normalized);
       } catch {
@@ -2507,7 +2929,8 @@ function Guestbook(): React.JSX.Element {
         error?: string;
       };
 
-      if (!res.ok || !data.ok || !data.item) throw new Error(data.error || `Falhou (${res.status}).`);
+      if (!res.ok || !data.ok || !data.item)
+        throw new Error(data.error || `Falhou (${res.status}).`);
 
       setItems((prev) => [...prev, data.item!].slice(-MAX_ITEMS));
 
@@ -2529,11 +2952,17 @@ function Guestbook(): React.JSX.Element {
   return (
     <section id="recados" style={{ background: COLORS.beige }}>
       <div className="mx-auto max-w-6xl px-4 py-20">
-        <SectionHeader title="Livro de Recados" subtitle="Deixa aqui uma mensagem — vai ficar guardada para sempre." />
+        <SectionHeader
+          title="Livro de Recados"
+          subtitle="Deixa aqui uma mensagem — vai ficar guardada para sempre."
+        />
 
         <div className="mx-auto mt-14 max-w-5xl">
           {/* FORM */}
-          <div className="border bg-white" style={{ borderColor: COLORS.beigeLine, borderRadius: RADIUS }}>
+          <div
+            className="border bg-white"
+            style={{ borderColor: COLORS.beigeLine, borderRadius: RADIUS }}
+          >
             <form onSubmit={onSend} className="p-8 space-y-6">
               <div className="grid gap-6 sm:grid-cols-2">
                 <label className="block">
@@ -2548,7 +2977,11 @@ function Guestbook(): React.JSX.Element {
                     onChange={(e) => setName(e.target.value)}
                     required
                     className="mt-3 w-full border bg-white px-4 py-3 text-sm outline-none"
-                    style={{ borderColor: COLORS.line, borderRadius: 2, color: COLORS.ink }}
+                    style={{
+                      borderColor: COLORS.line,
+                      borderRadius: 2,
+                      color: COLORS.ink,
+                    }}
                     placeholder=""
                   />
                 </label>
@@ -2565,7 +2998,11 @@ function Guestbook(): React.JSX.Element {
                     onChange={(e) => setEmail(e.target.value)}
                     type="email"
                     className="mt-3 w-full border bg-white px-4 py-3 text-sm outline-none"
-                    style={{ borderColor: COLORS.line, borderRadius: 2, color: COLORS.ink }}
+                    style={{
+                      borderColor: COLORS.line,
+                      borderRadius: 2,
+                      color: COLORS.ink,
+                    }}
                     placeholder=""
                   />
                 </label>
@@ -2586,14 +3023,26 @@ function Guestbook(): React.JSX.Element {
                   rows={6}
                   maxLength={MAX_MESSAGE_CHARS}
                   className="mt-3 w-full border bg-white px-4 py-3 text-sm outline-none"
-                  style={{ borderColor: COLORS.line, borderRadius: 2, color: COLORS.ink }}
+                  style={{
+                    borderColor: COLORS.line,
+                    borderRadius: 2,
+                    color: COLORS.ink,
+                  }}
                   placeholder="Escreve aqui o teu recado..."
                 />
 
-                <div className="mt-2 flex items-center justify-between text-[12px]" style={{ color: COLORS.muted }}>
-                  <span>{message.trim().length > 0 ? "Escreve algo curto e bonito 😄" : ""}</span>
+                <div
+                  className="mt-2 flex items-center justify-between text-[12px]"
+                  style={{ color: COLORS.muted }}
+                >
                   <span>
-                    {Math.min(message.length, MAX_MESSAGE_CHARS)}/{MAX_MESSAGE_CHARS}
+                    {message.trim().length > 0
+                      ? "Escreve algo curto e bonito 😄"
+                      : ""}
+                  </span>
+                  <span>
+                    {Math.min(message.length, MAX_MESSAGE_CHARS)}/
+                    {MAX_MESSAGE_CHARS}
                   </span>
                 </div>
               </label>
@@ -2615,7 +3064,12 @@ function Guestbook(): React.JSX.Element {
               </div>
 
               {status !== "idle" ? (
-                <div className="text-sm" style={{ color: status === "ok" ? COLORS.sageDark : "#b91c1c" }}>
+                <div
+                  className="text-sm"
+                  style={{
+                    color: status === "ok" ? COLORS.sageDark : "#b91c1c",
+                  }}
+                >
                   {statusMsg}
                 </div>
               ) : null}
@@ -2628,7 +3082,8 @@ function Guestbook(): React.JSX.Element {
             <div
               className="pointer-events-none absolute left-0 right-0 top-0 h-10 z-10"
               style={{
-                background: "linear-gradient(to bottom, rgba(255,255,255,0.95), rgba(255,255,255,0))",
+                background:
+                  "linear-gradient(to bottom, rgba(255,255,255,0.95), rgba(255,255,255,0))",
                 borderTopLeftRadius: RADIUS,
                 borderTopRightRadius: RADIUS,
               }}
@@ -2639,7 +3094,8 @@ function Guestbook(): React.JSX.Element {
             <div
               className="pointer-events-none absolute left-0 right-0 bottom-0 h-10 z-10"
               style={{
-                background: "linear-gradient(to top, rgba(255,255,255,0.95), rgba(255,255,255,0))",
+                background:
+                  "linear-gradient(to top, rgba(255,255,255,0.95), rgba(255,255,255,0))",
                 borderBottomLeftRadius: RADIUS,
                 borderBottomRightRadius: RADIUS,
               }}
@@ -2666,25 +3122,40 @@ function Guestbook(): React.JSX.Element {
                   <div
                     key={idx}
                     className="border bg-white"
-                    style={{ borderColor: COLORS.beigeLine, borderRadius: RADIUS }}
+                    style={{
+                      borderColor: COLORS.beigeLine,
+                      borderRadius: RADIUS,
+                    }}
                   >
                     <div className="flex gap-4 p-6">
                       <div
                         className="w-1"
-                        style={{ background: "rgba(174,183,162,0.55)", borderRadius: 999 }}
+                        style={{
+                          background: "rgba(174,183,162,0.55)",
+                          borderRadius: 999,
+                        }}
                         aria-hidden="true"
                       />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-4">
-                          <div className={cn("text-[15px]", QUOTE_CLASS)} style={{ color: COLORS.ink }}>
+                          <div
+                            className={cn("text-[15px]", QUOTE_CLASS)}
+                            style={{ color: COLORS.ink }}
+                          >
                             {it.name}
                           </div>
-                          <div className="text-[12px]" style={{ color: COLORS.muted }}>
+                          <div
+                            className="text-[12px]"
+                            style={{ color: COLORS.muted }}
+                          >
                             {new Date(it.createdAt).toLocaleDateString("pt-PT")}
                           </div>
                         </div>
 
-                        <div className="mt-3 text-[14px] leading-7" style={{ color: COLORS.muted }}>
+                        <div
+                          className="mt-3 text-[14px] leading-7"
+                          style={{ color: COLORS.muted }}
+                        >
                           {it.message}
                         </div>
                       </div>
@@ -2699,7 +3170,6 @@ function Guestbook(): React.JSX.Element {
     </section>
   );
 }
-
 
 async function copyToClipboard(text: string): Promise<boolean> {
   try {
@@ -2725,8 +3195,13 @@ async function copyToClipboard(text: string): Promise<boolean> {
   }
 }
 
-
-function CopyPill(props: { label: string; value: string; iconAfterSrc?: string; iconAfterAlt?: string; iconAfterHeight?: number; }): React.JSX.Element {
+function CopyPill(props: {
+  label: string;
+  value: string;
+  iconAfterSrc?: string;
+  iconAfterAlt?: string;
+  iconAfterHeight?: number;
+}): React.JSX.Element {
   const [state, setState] = useState<"idle" | "copied" | "error">("idle");
 
   async function onCopy(): Promise<void> {
@@ -2741,12 +3216,18 @@ function CopyPill(props: { label: string; value: string; iconAfterSrc?: string; 
       style={{ borderColor: COLORS.line, borderRadius: RADIUS }}
     >
       <div className="min-w-0">
-        <div className="text-[10px] tracking-[0.25em] uppercase" style={{ color: COLORS.muted }}>
+        <div
+          className="text-[10px] tracking-[0.25em] uppercase"
+          style={{ color: COLORS.muted }}
+        >
           {props.label}
         </div>
 
         {/* ✅ valor + logo DEPOIS (sem bolinha) */}
-        <div className="mt-1 font-medium break-words flex items-center gap-2" style={{ color: COLORS.ink }}>
+        <div
+          className="mt-1 font-medium break-words flex items-center gap-2"
+          style={{ color: COLORS.ink }}
+        >
           <span className="break-words">{props.value}</span>
 
           {props.iconAfterSrc ? (
@@ -2756,9 +3237,10 @@ function CopyPill(props: { label: string; value: string; iconAfterSrc?: string; 
               className="w-auto"
               style={{ height: props.iconAfterHeight ?? 16, opacity: 0.9 }} // ✅ default 16px
               draggable={false}
-              onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
+              onError={(e) =>
+                ((e.currentTarget as HTMLImageElement).style.display = "none")
+              }
             />
-
           ) : null}
         </div>
       </div>
@@ -2769,62 +3251,25 @@ function CopyPill(props: { label: string; value: string; iconAfterSrc?: string; 
         className="border px-3 py-2 text-[10px] tracking-[0.22em] uppercase transition hover:bg-black/5"
         style={{
           borderColor: state === "copied" ? COLORS.sageDark : COLORS.line,
-          color: state === "copied" ? COLORS.sageDark : state === "error" ? "#b91c1c" : COLORS.muted,
+          color:
+            state === "copied"
+              ? COLORS.sageDark
+              : state === "error"
+                ? "#b91c1c"
+                : COLORS.muted,
           borderRadius: 999,
           flex: "0 0 auto",
-          background: state === "copied" ? "rgba(174,183,162,0.12)" : "transparent",
+          background:
+            state === "copied" ? "rgba(174,183,162,0.12)" : "transparent",
         }}
       >
-        {state === "copied" ? "Copiado ✓" : state === "error" ? "Falhou" : "Copiar"}
+        {state === "copied"
+          ? "Copiado ✓"
+          : state === "error"
+            ? "Falhou"
+            : "Copiar"}
       </button>
     </div>
-  );
-}
-
-function IconLock(): React.JSX.Element {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M7 11V8.5a5 5 0 0 1 10 0V11"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-      <path
-        d="M7.5 11h9A2.5 2.5 0 0 1 19 13.5v5A2.5 2.5 0 0 1 16.5 21h-9A2.5 2.5 0 0 1 5 18.5v-5A2.5 2.5 0 0 1 7.5 11Z"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function PayBadge(props: { label: string; src?: string }): React.JSX.Element {
-  const [ok, setOk] = useState(true);
-
-  return (
-    <span
-      className="inline-flex items-center gap-2 border px-3 py-2"
-      style={{
-        borderColor: COLORS.beigeLine,
-        borderRadius: 999,
-        background: "white",
-        color: COLORS.muted,
-      }}
-    >
-      {props.src && ok ? (
-        <img
-          src={props.src}
-          alt={props.label}
-          className="h-4 w-auto"
-          onError={() => setOk(false)}
-          draggable={false}
-        />
-      ) : (
-        <span className="text-[10px] tracking-[0.18em] uppercase">{props.label}</span>
-      )}
-    </span>
   );
 }
 
@@ -2834,34 +3279,42 @@ function GiftFund(): React.JSX.Element {
   return (
     <section id="fundo" className="bg-white">
       <div className="mx-auto max-w-6xl px-4 py-20">
-        <SectionHeader title="Apoio" subtitle="Se quiseres contribuir, aqui vai a forma mais simples." />
+        <SectionHeader
+          title="Apoio"
+          subtitle="Se quiseres contribuir, aqui vai a forma mais simples."
+        />
 
         <div
           className="mx-auto mt-14 max-w-4xl border bg-white p-7 sm:p-8"
           style={{ borderColor: COLORS.line, borderRadius: RADIUS }}
         >
-          <div className="text-[12px] tracking-[0.25em] uppercase" style={{ color: COLORS.muted }}>
+          <div
+            className="text-[12px] tracking-[0.25em] uppercase"
+            style={{ color: COLORS.muted }}
+          >
             Dados para contribuição
           </div>
 
           {/* ✅ Mantém a mensagem principal só UMA vez (sem redundância) */}
-          <div className="mt-4 text-[16px] leading-7" style={{ color: COLORS.ink }}>
+          <div
+            className="mt-4 text-[16px] leading-7"
+            style={{ color: COLORS.ink }}
+          >
             {PAYMENT.note}
           </div>
 
           <div className="mt-7 grid gap-4">
             <CopyPill label="Titular" value={PAYMENT.holders} />
             <CopyPill label="IBAN" value={PAYMENT.iban} />
-            
-               {/* ✅ MB WAY abaixo do IBAN, logo depois do número */}
-          <CopyPill
-  label="MB WAY"
-  value={PAYMENT.mbway}
-  iconAfterSrc="/nav/mb-way.png"
-  iconAfterAlt="MB WAY"
-  iconAfterHeight={36} // ✅ experimenta 22, 24, 26
-/>
 
+            {/* ✅ MB WAY abaixo do IBAN, logo depois do número */}
+            <CopyPill
+              label="MB WAY"
+              value={PAYMENT.mbway}
+              iconAfterSrc="/nav/mb-way.png"
+              iconAfterAlt="MB WAY"
+              iconAfterHeight={36} // ✅ experimenta 22, 24, 26
+            />
 
             {/* ✅ CTA moderno (layout planeado) */}
             <div
@@ -2888,7 +3341,10 @@ function GiftFund(): React.JSX.Element {
                     alt=""
                     className="h-16 w-16"
                     style={{ opacity: 0.95 }}
-                    onError={(ev) => ((ev.currentTarget as HTMLImageElement).style.display = "none")}
+                    onError={(ev) =>
+                      ((ev.currentTarget as HTMLImageElement).style.display =
+                        "none")
+                    }
                     draggable={false}
                   />
                 </div>
@@ -2896,12 +3352,18 @@ function GiftFund(): React.JSX.Element {
 
               {/* ✅ Texto do bloco (curto, não redundante) */}
               <div className="pr-14 sm:pr-16">
-                <div className={cn("text-[22px] sm:text-[24px]", QUOTE_CLASS)} style={{ color: COLORS.ink }}>
+                <div
+                  className={cn("text-[22px] sm:text-[24px]", QUOTE_CLASS)}
+                  style={{ color: COLORS.ink }}
+                >
                   Um gesto de carinho
                 </div>
 
-                <div className="mt-2 text-[14px] leading-6" style={{ color: COLORS.muted }}>
-            Uma forma simples e rápida de contribuir.
+                <div
+                  className="mt-2 text-[14px] leading-6"
+                  style={{ color: COLORS.muted }}
+                >
+                  Uma forma simples e rápida de contribuir.
                 </div>
               </div>
 
@@ -2919,10 +3381,12 @@ function GiftFund(): React.JSX.Element {
                   transform: "translateY(0)",
                 }}
                 onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLAnchorElement).style.transform = "translateY(-1px)";
+                  (e.currentTarget as HTMLAnchorElement).style.transform =
+                    "translateY(-1px)";
                 }}
                 onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLAnchorElement).style.transform = "translateY(0)";
+                  (e.currentTarget as HTMLAnchorElement).style.transform =
+                    "translateY(0)";
                 }}
               >
                 <span aria-hidden="true" style={{ opacity: 0.95 }}>
@@ -2935,7 +3399,10 @@ function GiftFund(): React.JSX.Element {
               </a>
 
               {/* ✅ Linha de confiança (sem repetir a ideia do note) */}
-              <div className="mt-3 text-center text-[12px]" style={{ color: COLORS.muted }}>
+              <div
+                className="mt-3 text-center text-[12px]"
+                style={{ color: COLORS.muted }}
+              >
                 Cartão / Apple Pay / Google Pay (consoante o dispositivo).
               </div>
 
@@ -2958,7 +3425,10 @@ function GiftFund(): React.JSX.Element {
                       alt={m.label}
                       className="h-[18px] w-auto"
                       style={{ opacity: 0.92 }}
-                      onError={(ev) => ((ev.currentTarget as HTMLImageElement).style.display = "none")}
+                      onError={(ev) =>
+                        ((ev.currentTarget as HTMLImageElement).style.display =
+                          "none")
+                      }
                       draggable={false}
                     />
                   </span>
@@ -2971,8 +3441,6 @@ function GiftFund(): React.JSX.Element {
     </section>
   );
 }
-
-
 
 function Footer(): React.JSX.Element {
   return (
@@ -3005,10 +3473,16 @@ function Footer(): React.JSX.Element {
           </div>
 
           <div>
-            <div className={cn("text-5xl", SCRIPT_CLASS)} style={{ color: "white" }}>
+            <div
+              className={cn("text-5xl", SCRIPT_CLASS)}
+              style={{ color: "white" }}
+            >
               Afonso e Jussara
             </div>
-            <div className="mt-3 text-[12px] tracking-[0.55em]" style={{ color: "rgba(255,255,255,0.85)" }}>
+            <div
+              className="mt-3 text-[12px] tracking-[0.55em]"
+              style={{ color: "rgba(255,255,255,0.85)" }}
+            >
               18 | 09 | 2026
             </div>
           </div>
@@ -3020,10 +3494,15 @@ function Footer(): React.JSX.Element {
               style={{ fontWeight: 700, color: "rgba(255,255,255,0.86)" }}
             >
               Desenvolvido por{" "}
-              <span style={{ color: "rgba(255,255,255,0.98)" }}>Afonso da Silva</span>
+              <span style={{ color: "rgba(255,255,255,0.98)" }}>
+                Afonso da Silva
+              </span>
             </span>
 
-            <span aria-hidden="true" style={{ opacity: 0.45, color: "rgba(255,255,255,0.85)" }}>
+            <span
+              aria-hidden="true"
+              style={{ opacity: 0.45, color: "rgba(255,255,255,0.85)" }}
+            >
               •
             </span>
 
@@ -3041,11 +3520,17 @@ function Footer(): React.JSX.Element {
       <div className="hidden md:block bg-white">
         <div className="mx-auto max-w-6xl px-4 py-20">
           <div className="mx-auto max-w-4xl text-center">
-            <p className={cn("text-[18px] italic leading-8", QUOTE_CLASS)} style={{ color: COLORS.sageDark }}>
+            <p
+              className={cn("text-[18px] italic leading-8", QUOTE_CLASS)}
+              style={{ color: COLORS.sageDark }}
+            >
               “{BIBLE_VERSE}”
             </p>
 
-            <div className="mx-auto mt-10 overflow-hidden border" style={{ borderColor: COLORS.line, borderRadius: RADIUS }}>
+            <div
+              className="mx-auto mt-10 overflow-hidden border"
+              style={{ borderColor: COLORS.line, borderRadius: RADIUS }}
+            >
               <img
                 src={FOOTER_IMAGE_URL}
                 alt=""
@@ -3057,10 +3542,16 @@ function Footer(): React.JSX.Element {
               />
             </div>
 
-            <div className={cn("mt-12 text-6xl", SCRIPT_CLASS)} style={{ color: COLORS.ink }}>
+            <div
+              className={cn("mt-12 text-6xl", SCRIPT_CLASS)}
+              style={{ color: COLORS.ink }}
+            >
               Afonso e Jussara
             </div>
-            <div className="mt-3 text-[12px] tracking-[0.55em]" style={{ color: COLORS.muted }}>
+            <div
+              className="mt-3 text-[12px] tracking-[0.55em]"
+              style={{ color: COLORS.muted }}
+            >
               18 | 09 | 2026
             </div>
 
@@ -3074,7 +3565,10 @@ function Footer(): React.JSX.Element {
                 <span style={{ color: COLORS.ink }}>Afonso da Silva</span>
               </span>
 
-              <span aria-hidden="true" style={{ opacity: 0.55, color: COLORS.muted }}>
+              <span
+                aria-hidden="true"
+                style={{ opacity: 0.55, color: COLORS.muted }}
+              >
                 •
               </span>
 
@@ -3092,7 +3586,6 @@ function Footer(): React.JSX.Element {
   );
 }
 
-
 export default function WeddingSite(): React.JSX.Element {
   const items = useMemo(
     () => [
@@ -3104,7 +3597,7 @@ export default function WeddingSite(): React.JSX.Element {
       { id: "recados", label: "RECADOS" },
       { id: "fundo", label: "APOIO" },
     ],
-    []
+    [],
   );
 
   const [activeId, setActiveId] = useState("home");
@@ -3114,18 +3607,22 @@ export default function WeddingSite(): React.JSX.Element {
   }, []);
 
   useEffect(() => {
-    const els = items.map((x) => document.getElementById(x.id)).filter((x): x is HTMLElement => Boolean(x));
+    const els = items
+      .map((x) => document.getElementById(x.id))
+      .filter((x): x is HTMLElement => Boolean(x));
     if (els.length === 0) return;
 
     const obs = new IntersectionObserver(
       (entries) => {
         const visible = entries
           .filter((e) => e.isIntersecting)
-          .sort((a, b) => (b.intersectionRatio || 0) - (a.intersectionRatio || 0));
+          .sort(
+            (a, b) => (b.intersectionRatio || 0) - (a.intersectionRatio || 0),
+          );
         const id = visible[0]?.target?.id;
         if (id) setActiveId(id);
       },
-      { threshold: [0.25, 0.45, 0.6] }
+      { threshold: [0.25, 0.45, 0.6] },
     );
 
     els.forEach((el) => obs.observe(el));
@@ -3146,10 +3643,11 @@ export default function WeddingSite(): React.JSX.Element {
   }
 
   return (
-    <div className={cn("min-h-screen", SERIF_CLASS)} style={{ background: COLORS.paper, color: COLORS.ink }}>
-      <GlobalFonts />
+    <div
+      className={cn("min-h-screen", SERIF_CLASS)}
+      style={{ background: COLORS.paper, color: COLORS.ink }}
+    >
       <TopNav items={items} activeId={activeId} onNav={scrollTo} />
-
       <main>
         <Hero />
         <Welcome />

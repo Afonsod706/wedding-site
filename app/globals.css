@@ -1,15 +1,17 @@
 @import "tailwindcss";
 
+/* =========================================================
+   THEME BASE
+   ========================================================= */
 :root {
   --background: #ffffff;
   --foreground: #171717;
-}
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Font tokens (carregadas via <link> no layout.tsx) */
+  --font-body: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, "Noto Sans",
+    "Liberation Sans", sans-serif;
+  --font-quote: "Inter", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-script: "Birthstone Bounce", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -19,8 +21,92 @@
   }
 }
 
+/* Tailwind theme inline vars (sem Geist) */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  /* se usares classes do Tailwind que dependem destas vars */
+  --font-sans: var(--font-body);
+  --font-mono: var(--font-body); /* troca para mono local se quiseres */
+}
+
+/* =========================================================
+   GLOBAL BASE
+   ========================================================= */
+html {
+  scroll-behavior: smooth;
+}
+
+/* ✅ garante que NÃO fica Arial */
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-body);
+}
+
+/* =========================================================
+   YOUR FONT CLASSES (usadas no page.tsx)
+   ========================================================= */
+.fontBody {
+  font-family: var(--font-body);
+}
+
+.fontQuote {
+  font-family: var(--font-quote);
+}
+
+.fontScript {
+  font-family: var(--font-script);
+}
+
+/* =========================================================
+   SMALL UTILS
+   ========================================================= */
+.noSelect {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ✅ para o scrollIntoView não ficar escondido atrás do header fixo */
+section[id] {
+  scroll-margin-top: 88px;
+}
+
+/* ✅ quando o menu abre, esconde o botão da música */
+html[data-menu-open="1"] .musicBtn {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(6px);
+}
+
+/* =========================================================
+   ANIMATIONS (as que tinhas no GlobalFonts)
+   ========================================================= */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.fadeIn {
+  animation: fadeIn 420ms ease both;
+}
+
+@keyframes menuIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.menuAnim {
+  animation: menuIn 180ms ease both;
 }

@@ -123,8 +123,8 @@ const BIBLE_VERSE =
 
 // Dados REAIS
 const PAYMENT = {
-  holders: "AFONSO HENRIQUE PENA PEDROSO SILVA",
-  iban: "PT50 0035 0185 00693489330 08",
+  holders: "JUSSARA LUCÍLIA CUSSECALA MARTINS",
+  iban: "PT50 0023 0000 45836173294 94",
   bic: "CGDIPTPL",
   mbway: "+351 935 163 201",
   note: "Se te fizer sentido contribuir para a nossa lua de mel (ou ajudar com algum detalhe do casamento), agradecemos de coração. Sem pressão 💚",
